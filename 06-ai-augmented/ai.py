@@ -104,12 +104,30 @@ _BULL_RE = _re.compile(r"(bull|moon|lfg|pump|long|green|🔥|🚀|send it|breako
 _BEAR_RE = _re.compile(r"(bear|dump|rug|rekt|short|red|📉|stop\s*loss|ngmi|paper hands|crash|liquidat)", _re.I)
 
 
+_SIGNAL_RE = _re.compile(
+    r"(because|i think|imo|expect|target|support|resistance|thesis|liquidity|"
+    r"breakout|accumulat|divergence|catalyst|why\b|how\b|\?$|funding|macro|"
+    r"entry at|stop at|risk[/ ]reward|r:r)",
+    _re.I,
+)
+
+
+def _heuristic_standout(t: str, flag: str) -> bool:
+    """A message is 'standout' if it carries real signal: a reasoned take, a level/target, or a real question."""
+    if flag != "ok":
+        return False
+    has_cashtag = bool(_CASHTAG_RE.search(t))
+    has_signal = bool(_SIGNAL_RE.search(t))
+    # substance heuristic: signal language, or a cashtag paired with a longer thought
+    return has_signal or (has_cashtag and len(t) >= 22)
+
+
 def _heuristic_classify(text: str) -> dict:
     t = text or ""
     if _TOXIC_RE.search(t):
-        return {"flag": "toxic", "sentiment": "🤬"}
+        return {"flag": "toxic", "sentiment": "🤬", "standout": False}
     if _SPAM_RE.search(t):
-        return {"flag": "spam", "sentiment": "🚩"}
+        return {"flag": "spam", "sentiment": "🚩", "standout": False}
     bull, bear = bool(_BULL_RE.search(t)), bool(_BEAR_RE.search(t))
     if bull and not bear:
         senti = "🚀"
@@ -119,7 +137,7 @@ def _heuristic_classify(text: str) -> dict:
         senti = "😄"
     else:
         senti = "💬"
-    return {"flag": "ok", "sentiment": senti}
+    return {"flag": "ok", "sentiment": senti, "standout": _heuristic_standout(t, "ok")}
 
 
 _CASHTAG_RE = _re.compile(r"\$[A-Za-z]{2,10}\b")
@@ -190,13 +208,17 @@ async def classify_message(text: str) -> Optional[dict]:
         try:
             resp = await _client.messages.create(
                 model=MODEL,
-                max_tokens=40,
+                max_tokens=60,
                 system=(
                     "You moderate live-stream chat for a crypto trading show (Market Bubble). "
                     "Classify ONE chat message. Reply with ONLY a compact JSON object, no prose, "
-                    "no markdown fences. Shape: {\"flag\":\"ok|spam|toxic\",\"sentiment\":\"<one emoji>\"}. "
+                    "no markdown fences. Shape: "
+                    "{\"flag\":\"ok|spam|toxic\",\"sentiment\":\"<one emoji>\",\"standout\":true|false}. "
                     "flag='spam' for scams/link-spam/repetitive coin shilling, 'toxic' for harassment/slurs/hate, "
-                    "'ok' otherwise. sentiment = a single emoji capturing the vibe."
+                    "'ok' otherwise. sentiment = a single emoji capturing the vibe. "
+                    "standout=true ONLY for genuinely high-signal messages a host would want to read aloud: "
+                    "a sharp market take with reasoning, real alpha, a specific level/target, or a thoughtful "
+                    "question. standout=false for filler, hype, emotes, spam, or toxic."
                 ),
                 messages=[{"role": "user", "content": text[:500]}],
             )
@@ -206,7 +228,9 @@ async def classify_message(text: str) -> Optional[dict]:
                 flag = data.get("flag", "ok")
                 if flag not in ("ok", "spam", "toxic"):
                     flag = "ok"
-                return {"flag": flag, "sentiment": (data.get("sentiment") or "").strip()[:4]}
+                standout = bool(data.get("standout")) and flag == "ok"
+                return {"flag": flag, "sentiment": (data.get("sentiment") or "").strip()[:4],
+                        "standout": standout}
         except Exception as e:
             _trip_breaker(e)
     return _heuristic_classify(text)

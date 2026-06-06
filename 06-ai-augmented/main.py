@@ -40,12 +40,40 @@ from connectors import build_connector_tasks
 
 MAX_RETAINED = 500           # cap retained messages to bound memory
 SUMMARY_INTERVAL = 15        # seconds between rolling-summary refreshes
+STATS_INTERVAL = 6           # seconds between contributor-leaderboard pushes
 
 # Shared state
 _clients: Set[WebSocket] = set()
 _history: Deque[dict] = deque(maxlen=MAX_RETAINED)
 _summary: dict = {"text": "", "ai": ai.ai_enabled()}
 _loop_tasks: list = []
+
+# Per-user "meaningful contribution" stats. score = standouts*3 + messages.
+# Standouts (AI-judged high-signal posts) are weighted heavily so quality > spammy volume.
+_stats: dict = {}  # author -> {"msgs", "standouts", "source"}
+
+
+def _bump_stats(author: str, source: str) -> None:
+    if not author:
+        return
+    s = _stats.setdefault(author, {"msgs": 0, "standouts": 0, "source": source})
+    s["msgs"] += 1
+    s["source"] = source
+
+
+def _bump_standout(author: str) -> None:
+    if author and author in _stats:
+        _stats[author]["standouts"] += 1
+
+
+def _top_contributors(n: int = 8) -> list:
+    rows = [
+        {"author": a, "source": v["source"], "msgs": v["msgs"],
+         "standouts": v["standouts"], "score": v["standouts"] * 3 + v["msgs"]}
+        for a, v in _stats.items()
+    ]
+    rows.sort(key=lambda r: (r["standouts"], r["score"]), reverse=True)
+    return rows[:n]
 
 
 async def _broadcast(payload: dict) -> None:
@@ -70,11 +98,15 @@ async def _enrich_async(msg: dict) -> None:
         return
     msg["flag"] = enrich.get("flag", "ok")
     msg["sentiment"] = enrich.get("sentiment", "")
+    msg["standout"] = bool(enrich.get("standout"))
+    if msg["standout"]:
+        _bump_standout(msg.get("author", ""))
     # Patch the in-history copy so late joiners get the enriched version too.
     await _broadcast({"type": "patch", "data": {
         "id": msg.get("id"),
         "flag": msg.get("flag", "ok"),
         "sentiment": msg.get("sentiment", ""),
+        "standout": msg["standout"],
     }})
 
 
@@ -85,9 +117,20 @@ async def _enrich_and_emit(msg: dict) -> None:
     background and patches the row in place. If AI is off, it's just a plain feed.
     """
     _history.append(msg)
+    _bump_stats(msg.get("author", ""), msg.get("source", ""))
     await _broadcast({"type": "message", "data": msg})
     if ai.ai_enabled():
         asyncio.create_task(_enrich_async(msg))
+
+
+async def _stats_loop() -> None:
+    """Push the live 'meaningful contribution' leaderboard every few seconds."""
+    while True:
+        await asyncio.sleep(STATS_INTERVAL)
+        try:
+            await _broadcast({"type": "stats", "data": {"top": _top_contributors()}})
+        except Exception as e:
+            print(f"[stats] loop error ({e!r})")
 
 
 async def _summary_loop() -> None:
@@ -110,6 +153,7 @@ async def lifespan(app: FastAPI):
     # Start connectors + summary loop on startup
     _loop_tasks.extend(build_connector_tasks(_enrich_and_emit))
     _loop_tasks.append(asyncio.create_task(_summary_loop()))
+    _loop_tasks.append(asyncio.create_task(_stats_loop()))
     print(f"[omnichat] started — AI {'ON' if ai.ai_enabled() else 'OFF (plain mode)'}")
     try:
         yield
@@ -152,6 +196,7 @@ async def ws_endpoint(ws: WebSocket):
         }))
         for m in list(_history):
             await ws.send_text(json.dumps({"type": "message", "data": m}))
+        await ws.send_text(json.dumps({"type": "stats", "data": {"top": _top_contributors()}}))
         while True:
             # We don't need client messages; keep the socket alive.
             await ws.receive_text()

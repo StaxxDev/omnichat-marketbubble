@@ -18,6 +18,8 @@ Above: the AI build pulling **real live Twitch chat** (xqc + jynxzi) with **Clau
 
 The hero runs with **real Claude** (claude-haiku-4-5) for live spam/sentiment + a "what chat is saying" summary, with **$ticker** + **host/⭐VIP** highlighting and a Market Bubble black-&-gold theme. It degrades to a local heuristic if the API is unavailable, so the feed never goes dark on stream.
 
+**Engagement layer:** Claude also flags genuinely high-signal posts with a **💎 STANDOUT** badge (brief gold flash so a host can read it aloud), and a live **🏆 Top Contributors** leaderboard scores each user's *meaningful* contribution (`standouts×3 + messages`) so quality beats spammy volume — a real reason for chat to post well.
+
 ---
 
 ## The 10 builds

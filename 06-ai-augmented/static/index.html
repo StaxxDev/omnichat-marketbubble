@@ -81,6 +81,26 @@
   .star { color: var(--host); margin-right: 2px; }
   .vip { font-size: 9px; font-weight: 800; color: #0a0a0b; background: var(--host);
     padding: 1px 4px; border-radius: 3px; flex: none; letter-spacing: .4px; }
+  /* AI "standout" posts — high-signal, host-worthy. Gold pill + brief flash. */
+  .so-badge { font-size: 9px; font-weight: 800; color: #0a0a0b; flex: none; letter-spacing: .4px;
+    background: linear-gradient(90deg, var(--gold), #fff0c2); padding: 1px 6px; border-radius: 3px; }
+  .row.standout { background: rgba(232,200,121,.10); box-shadow: inset 3px 0 0 var(--gold); }
+  .row.standout .text { color: #fff; }
+  @keyframes soflash { from { background: rgba(232,200,121,.5); } to { background: rgba(232,200,121,.10); } }
+  .row.standout.flash { animation: soflash 1.8s ease-out; }
+
+  /* Live "meaningful contribution" leaderboard */
+  .contrib { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px;
+    background: #11151d; border: 1px solid var(--line); font-size: 12px; overflow-x: auto; white-space: nowrap; }
+  .contrib .lead { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: var(--gold); flex: none; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: #1c2230;
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; flex: none; }
+  .chip.top { border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(232,200,121,.35); }
+  .chip .rk { color: var(--dim); }
+  .chip .nm { font-weight: 700; }
+  .chip .gem { color: var(--gold); font-weight: 700; }
+  .chip .sc { color: var(--dim); }
+
   .row.flag-spam { background: rgba(245,166,35,.08); }
   .row.flag-toxic { background: rgba(255,77,77,.10); }
   .flagtag {
@@ -116,6 +136,10 @@
     <div class="banner">
       <span class="tag">AI · WHAT'S CHAT SAYING</span>
       <span class="txt" id="summary">waiting for chat…</span>
+    </div>
+    <div class="contrib">
+      <span class="lead">🏆 TOP CONTRIBUTORS</span>
+      <span id="contribList" style="color:var(--dim)">tracking meaningful contributions…</span>
     </div>
   </header>
 
@@ -198,7 +222,7 @@
     const meta = SOURCES[m.source] || { label: m.source.toUpperCase(), emoji: "" };
     const vip = isVip(m.author);
     const row = document.createElement("div");
-    row.className = "row" + (vip ? " host" : "") +
+    row.className = "row" + (vip ? " host" : "") + (m.standout ? " standout" : "") +
       (m.flag === "spam" ? " flag-spam" : m.flag === "toxic" ? " flag-toxic" : "");
     row.dataset.src = m.source;
     if (m.id) { row.dataset.id = m.id; rowsById.set(m.id, row); }
@@ -214,6 +238,7 @@
       `<span class="badge ${m.source}">${meta.emoji} ${meta.label}</span>` +
       `<span class="chan">${esc(m.channel)}</span>` +
       (vip ? `<span class="vip">⭐ VIP</span>` : "") +
+      (m.standout ? `<span class="so-badge">💎 STANDOUT</span>` : "") +
       flagTag +
       `<span class="author"${color ? ` style="color:${esc(color)}"` : ""}>${esc(m.author)}</span>` +
       `<span class="text">${renderText(m.text)}<span class="senti-slot">${senti}</span></span>`;
@@ -246,6 +271,32 @@
       if (slot && !slot.textContent.trim())
         slot.innerHTML = `<span class="senti">${esc(p.sentiment)}</span>`;
     }
+    if (p.standout && !row.classList.contains("standout")) {
+      row.classList.add("standout", "flash");
+      if (!row.querySelector(".so-badge")) {
+        const b = document.createElement("span");
+        b.className = "so-badge";
+        b.textContent = "💎 STANDOUT";
+        const anchor = row.querySelector(".vip") || row.querySelector(".chan");
+        anchor.after(b);
+      }
+      setTimeout(() => row.classList.remove("flash"), 1900);
+    }
+  }
+
+  const contribList = document.getElementById("contribList");
+  function renderStats(top) {
+    if (!top || !top.length) return;
+    const medal = ["🥇", "🥈", "🥉"];
+    contribList.innerHTML = top.map((r, i) => {
+      const meta = SOURCES[r.source] || { emoji: "" };
+      const rk = medal[i] || `#${i + 1}`;
+      const gem = r.standouts ? `<span class="gem">💎${r.standouts}</span>` : "";
+      return `<span class="chip${i < 3 ? " top" : ""}">` +
+        `<span class="rk">${rk}</span>${meta.emoji} ` +
+        `<span class="nm">${esc(r.author)}</span>${gem}` +
+        `<span class="sc">${r.score} pts · ${r.msgs} msg</span></span>`;
+    }).join(" ");
   }
 
   function setAI(on, mode) {
@@ -274,6 +325,7 @@
       let p; try { p = JSON.parse(ev.data); } catch (e) { return; }
       if (p.type === "message") addMessage(p.data);
       else if (p.type === "patch") patchMessage(p.data);
+      else if (p.type === "stats") renderStats(p.data.top);
       else if (p.type === "summary") summaryEl.textContent = p.data.text || "—";
       else if (p.type === "hello") {
         setAI(p.data.ai, p.data.mode);
