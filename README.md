@@ -4,9 +4,15 @@
 
 > 🏆 **Which should I submit?** For *the show*, in order: **#4 OBS Overlay** (chat literally on the broadcast), **#6 AI-Augmented** (the "we went further" wow — live AI summary + spam/sentiment), **#2 WebSocket Hub** (the safe shareable web app). See [RECORDING_GUIDE.md](RECORDING_GUIDE.md) for the record-and-submit steps + the "anything else" blurb.
 
-### Previews (verified running)
+### Hero on **real live data** — Twitch chat + real Claude moderation
 
-| #6 AI-Augmented (hero) | #4 OBS Overlay | #2 WebSocket Hub |
+![hero live](preview-hero-live.png)
+
+Above: the AI build pulling **real live Twitch chat** (xqc + jynxzi) with **Claude** doing the work — an accurate live summary ("Chat is spamming 'MAXWIN'… some users post random crypto wallet addresses"), real **SPAM**/**TOXIC** flags on the repetitive spam, and per-message sentiment. Verified: a 28-second run of the real connectors pulled **341 live Twitch messages** + **99 live @blknoiz06 X mentions**.
+
+### More previews (all verified running)
+
+| #6 AI (demo mode) | #4 OBS Overlay | #2 WebSocket Hub |
 |---|---|---|
 | ![hero](preview-hero.png) | ![overlay](preview-overlay.png) | ![hub](preview-hub.png) |
 

@@ -67,6 +67,15 @@ Open in browser:  04-obs-overlay/overlay.html?demo=1
 
 ---
 
+## 📡 Live-data proof (ran the real connectors for 28s)
+- **Twitch — ✅ 341 real messages** pulled live from jynxzi/xqc via anonymous IRC (no key).
+- **X — ✅ 99 real @blknoiz06 mentions** via your API token (real cashtags: $SOL, $kins…).
+- **Kick — ⚠️ Cloudflare-403** on the server-side channel lookup. This is the known Kick quirk: their CF blocks non-browser fetches (even headless Chrome). Two working paths:
+  1. **The browser apps (#4 overlay, #1 extension) resolve Kick fine** — they run in your real Chrome where CF passes. So **film the overlay (#4) and all 3 sources are live.**
+  2. For the **server-side** apps (#6/#2/#3/#5/#8), set `KICK_CHATROOM_IDS` in `.env`: open `https://kick.com/api/v2/channels/<slug>` in your normal Chrome, copy the `chatroom.id`, and paste it (CSV, aligned to `KICK_CHANNELS`). Until then Kick falls back to demo so the feed stays full.
+
+> **Net:** for the demo video, Twitch + X are live out of the box; for full live Kick, either film the **overlay (#4)** or drop one `KICK_CHATROOM_IDS` value in `.env`.
+
 ## 🧪 What's verified vs. needs your machine
 - **#6 AI-Augmented** — ✅ runs, real Claude confirmed (filmable now)
 - **#4 OBS Overlay** — ✅ renders (static HTML, demo screenshotted)
