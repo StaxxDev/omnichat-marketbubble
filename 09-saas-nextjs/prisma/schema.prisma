@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String
+  // CSV configs (per-room). Aggregator reads these to run connectors.
+  twitch    String   @default("") // csv logins
+  kick      String   @default("") // csv slugs
+  kickIds   String   @default("") // optional csv chatroom ids aligned to `kick`
+  xMode     String   @default("") // replies|mentions|hashtag
+  xTarget   String   @default("")
+  demo      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  messages Message[]
+}
+
+model Message {
+  id       String  @id @default(cuid())
+  roomId   String
+  msgId    String  // connector-provided unique id
+  source   String  // twitch | x | kick
+  channel  String
+  author   String
+  text     String
+  color    String  @default("")
+  ts       BigInt  // epoch ms
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, ts])
+}

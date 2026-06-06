@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OmniChat Lite — Unified Stream Chat</title>
+<style>
+  :root {
+    --tw: #9146FF; --x: #1D9BF0; --kick: #53FC18;
+    --bg: #0d0f14; --bg2: #151922; --line: #232938; --fg: #e8edf4; --mut: #8b95a7;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--bg2); border-bottom: 1px solid var(--line);
+  }
+  .brand { font-weight: 700; font-size: 16px; letter-spacing: .5px; }
+  .brand small { color: var(--mut); font-weight: 400; font-size: 11px; }
+  .spacer { flex: 1; }
+  .demo-pill {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    background: #3a2a00; color: #ffcf4d; border: 1px solid #6b4f00; display: none;
+  }
+  .demo-pill.on { display: inline-block; }
+  .status { font-size: 11px; color: var(--mut); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+  .dot.live { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+  .toggles { display: flex; gap: 8px; }
+  .tg {
+    cursor: pointer; user-select: none; border: 1px solid var(--line);
+    background: var(--bg); color: var(--fg); padding: 5px 11px; border-radius: 8px;
+    font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
+    opacity: .42; transition: opacity .12s, border-color .12s;
+  }
+  .tg.on { opacity: 1; }
+  .tg[data-s="twitch"].on { border-color: var(--tw); }
+  .tg[data-s="x"].on { border-color: var(--x); }
+  .tg[data-s="kick"].on { border-color: var(--kick); }
+  .tg .cnt { color: var(--mut); font-size: 10px; }
+
+  #feed { flex: 1; overflow-y: auto; padding: 10px 0 18px; }
+  .row {
+    display: grid; grid-template-columns: auto auto auto 1fr; gap: 8px; align-items: baseline;
+    padding: 4px 16px; border-bottom: 1px solid #11151c;
+  }
+  .row:hover { background: #11141b; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .5px; padding: 2px 7px;
+    border-radius: 6px; white-space: nowrap; color: #0a0a0a;
+  }
+  .badge.twitch { background: var(--tw); color: #fff; }
+  .badge.x { background: var(--x); color: #fff; }
+  .badge.kick { background: var(--kick); color: #062b00; }
+  .chan { color: var(--mut); font-size: 12px; white-space: nowrap; }
+  .chan::before { content: "#"; opacity: .5; }
+  .author { font-weight: 700; white-space: nowrap; }
+  .author::after { content: ":"; color: var(--mut); font-weight: 400; }
+  .text { word-break: break-word; }
+  .paused {
+    position: sticky; bottom: 0; text-align: center; padding: 6px;
+    background: #1d2330; color: #ffcf4d; font-size: 12px; cursor: pointer; display: none;
+  }
+  .paused.on { display: block; }
+  .empty { color: var(--mut); text-align: center; padding: 40px 16px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">⚡ OmniChat&nbsp;Lite <small>Twitch · X · Kick — one feed</small></div>
+    <span class="demo-pill" id="demoPill">DEMO MODE</span>
+    <div class="spacer"></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">connecting…</span></div>
+    <div class="toggles" id="toggles">
+      <button class="tg on" data-s="twitch">🎮 TWITCH <span class="cnt" id="c-twitch">0</span></button>
+      <button class="tg on" data-s="x">𝕏 X <span class="cnt" id="c-x">0</span></button>
+      <button class="tg on" data-s="kick">⚡ KICK <span class="cnt" id="c-kick">0</span></button>
+    </div>
+  </header>
+
+  <div id="feed"><div class="empty" id="empty">Waiting for messages…</div></div>
+  <div class="paused" id="pausedBar">⏸ Auto-scroll paused (scrolled up) — click to resume</div>
+
+<script>
+(() => {
+  const MAX = 500;
+  const META = {
+    twitch: { label: "TWITCH", emoji: "🎮", color: "#9146FF" },
+    x:      { label: "X",      emoji: "𝕏",  color: "#1D9BF0" },
+    kick:   { label: "KICK",   emoji: "⚡", color: "#53FC18" },
+  };
+  const feed = document.getElementById("feed");
+  const empty = document.getElementById("empty");
+  const pausedBar = document.getElementById("pausedBar");
+  const dot = document.getElementById("dot");
+  const statusText = document.getElementById("statusText");
+  const demoPill = document.getElementById("demoPill");
+
+  const show = { twitch: true, x: true, kick: true };
+  const counts = { twitch: 0, x: 0, kick: 0 };
+  let paused = false;
+
+  // ---- source-filter toggles -------------------------------------------
+  document.getElementById("toggles").addEventListener("click", (e) => {
+    const btn = e.target.closest(".tg");
+    if (!btn) return;
+    const s = btn.dataset.s;
+    show[s] = !show[s];
+    btn.classList.toggle("on", show[s]);
+    feed.querySelectorAll(`.row[data-s="${s}"]`).forEach((r) => {
+      r.style.display = show[s] ? "" : "none";
+    });
+    if (!paused) feed.scrollTop = feed.scrollHeight;
+  });
+
+  // ---- auto-scroll w/ pause-on-scroll-up --------------------------------
+  feed.addEventListener("scroll", () => {
+    const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
+    paused = !atBottom;
+    pausedBar.classList.toggle("on", paused);
+  });
+  pausedBar.addEventListener("click", () => {
+    paused = false;
+    pausedBar.classList.remove("on");
+    feed.scrollTop = feed.scrollHeight;
+  });
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function render(m) {
+    if (empty) { empty.remove(); }
+    const meta = META[m.source] || { label: m.source.toUpperCase(), emoji: "•", color: "#888" };
+    const row = document.createElement("div");
+    row.className = "row";
+    row.dataset.s = m.source;
+    if (!show[m.source]) row.style.display = "none";
+    const authorColor = m.color && /^#[0-9a-f]{3,8}$/i.test(m.color) ? m.color : meta.color;
+    row.innerHTML =
+      `<span class="badge ${m.source}">${meta.emoji} ${meta.label}</span>` +
+      `<span class="chan">${esc(m.channel)}</span>` +
+      `<span class="author" style="color:${authorColor}">${esc(m.author)}</span>` +
+      `<span class="text">${esc(m.text)}</span>`;
+    feed.appendChild(row);
+
+    counts[m.source] = (counts[m.source] || 0) + 1;
+    const cEl = document.getElementById("c-" + m.source);
+    if (cEl) cEl.textContent = counts[m.source];
+
+    // cap retained DOM rows
+    while (feed.children.length > MAX) feed.removeChild(feed.firstChild);
+    if (!paused) feed.scrollTop = feed.scrollHeight;
+  }
+
+  // ---- websocket w/ reconnect-backoff -----------------------------------
+  let attempt = 0;
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen = () => {
+      attempt = 0;
+      dot.classList.add("live");
+      statusText.textContent = "live";
+    };
+    ws.onmessage = (ev) => {
+      let d;
+      try { d = JSON.parse(ev.data); } catch { return; }
+      if (d.type === "hello") {
+        if (d.demo) demoPill.classList.add("on");
+        (d.history || []).forEach(render);
+        feed.scrollTop = feed.scrollHeight;
+      } else if (d.type === "msg") {
+        render(d.msg);
+      }
+    };
+    ws.onclose = () => {
+      dot.classList.remove("live");
+      attempt++;
+      const delay = Math.min(15000, 500 * 2 ** Math.min(attempt, 5));
+      statusText.textContent = `reconnecting in ${Math.round(delay / 1000)}s…`;
+      setTimeout(connect, delay);
+    };
+    ws.onerror = () => ws.close();
+  }
+  connect();
+})();
+</script>
+</body>
+</html>

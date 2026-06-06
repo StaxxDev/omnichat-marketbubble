@@ -1,0 +1,17 @@
+{
+  "name": "omnichat-bridge",
+  "version": "1.0.0",
+  "description": "Unified Twitch + X + Kick chat aggregator that fans messages to a live web table view (SSE) and optionally Telegram + Discord, each labeled by source.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "demo": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "license": "MIT"
+}

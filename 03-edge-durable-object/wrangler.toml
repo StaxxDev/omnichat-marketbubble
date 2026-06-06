@@ -1,0 +1,37 @@
+name = "omnichat-edge"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Serve the UI from /public via the Worker's static assets.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# The single fan-in hub Durable Object.
+[[durable_objects.bindings]]
+name = "HUB"
+class_name = "Hub"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["Hub"]
+
+# ----------------------------------------------------------------------------
+# Configuration (vars). Override per-environment or via `wrangler.toml` edits.
+# Secrets (X_BEARER_TOKEN) must be set with:  wrangler secret put X_BEARER_TOKEN
+# ----------------------------------------------------------------------------
+[vars]
+# Comma-separated Twitch channel logins (lowercase), e.g. "xqc,ansem"
+TWITCH_CHANNELS = ""
+# Comma-separated Kick channel slugs, e.g. "xqc,trainwreckstv"
+KICK_CHANNELS = ""
+# Optional comma-separated chatroom ids aligned to KICK_CHANNELS (used if the
+# kick.com API resolve call is blocked by Cloudflare).
+KICK_CHATROOM_IDS = ""
+# X polling: replies | mentions | hashtag
+X_MODE = "hashtag"
+# X target: conversation id / handle / tag (without the @ or #)
+X_TARGET = ""
+# Set to "1" to force demo mode even when channels are configured.
+DEMO = ""

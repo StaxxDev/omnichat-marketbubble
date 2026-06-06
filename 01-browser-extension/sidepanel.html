@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmniChat</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⬡</span>
+      <span class="title">OmniChat</span>
+      <span id="demoBadge" class="demo-badge" hidden>DEMO</span>
+    </div>
+    <div class="filters">
+      <button class="filter on" data-src="twitch" style="--c:#9146FF">🎮 Twitch</button>
+      <button class="filter on" data-src="x" style="--c:#1D9BF0">𝕏 X</button>
+      <button class="filter on" data-src="kick" style="--c:#53FC18">⚡ Kick</button>
+    </div>
+    <div class="actions">
+      <button id="pauseBtn" title="Pause auto-scroll">⏸ Live</button>
+      <button id="clearBtn" title="Clear feed">🗑</button>
+      <button id="optionsBtn" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <div id="statusbar" class="statusbar"></div>
+
+  <main id="feed" class="feed"></main>
+
+  <div id="jumpBtn" class="jump-btn" hidden>↓ New messages</div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

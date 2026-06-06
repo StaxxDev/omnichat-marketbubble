@@ -1,0 +1,14 @@
+{
+  "name": "omnichat-lite",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Unified chat aggregator (Twitch + X + Kick) in one real-time feed. Bun + Hono, single process.",
+  "scripts": {
+    "start": "bun run server.ts",
+    "dev": "bun run --watch server.ts"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  }
+}

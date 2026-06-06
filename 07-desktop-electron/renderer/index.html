@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmniChat Desktop</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <span class="logo">◎</span>
+      <span class="title">OmniChat</span>
+      <span class="sub">unified chat</span>
+    </div>
+    <div class="filters" id="filters">
+      <button class="filter on" data-source="twitch"><span class="emo">🎮</span> Twitch</button>
+      <button class="filter on" data-source="x"><span class="emo">𝕏</span> X</button>
+      <button class="filter on" data-source="kick"><span class="emo">⚡</span> Kick</button>
+    </div>
+    <div class="actions">
+      <button id="settingsBtn" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <div id="statusbar"></div>
+
+  <main id="feed" aria-live="polite"></main>
+
+  <div id="pausePill" class="hidden">⏸ Paused (scroll to bottom to resume)</div>
+
+  <!-- Settings panel -->
+  <div id="settingsOverlay" class="hidden">
+    <div id="settingsPanel">
+      <h2>Settings</h2>
+      <p class="hint">Tokens and channels stay local on this machine. Leave everything blank to run Demo Mode.</p>
+
+      <label>Twitch channels <span class="dim">(csv logins)</span></label>
+      <input id="set_twitch" placeholder="ansem, xqc" />
+
+      <label>Kick channels <span class="dim">(csv slugs)</span></label>
+      <input id="set_kick" placeholder="trainwreckstv, ac7ionman" />
+
+      <label>Kick chatroom IDs <span class="dim">(optional, csv — aligned to slugs, used if Cloudflare blocks lookup)</span></label>
+      <input id="set_kickids" placeholder="123456, 789012" />
+
+      <div class="row">
+        <div class="col">
+          <label>X mode</label>
+          <select id="set_xmode">
+            <option value="hashtag">hashtag</option>
+            <option value="mentions">mentions</option>
+            <option value="replies">replies</option>
+          </select>
+        </div>
+        <div class="col grow">
+          <label>X target <span class="dim">(tag / handle / conversation id)</span></label>
+          <input id="set_xtarget" placeholder="ansem" />
+        </div>
+      </div>
+
+      <label>X bearer token <span class="dim">(API v2)</span></label>
+      <input id="set_xtoken" type="password" placeholder="AAAA... (kept local)" />
+
+      <label class="checkrow"><input type="checkbox" id="set_demo" /> Force Demo Mode</label>
+
+      <div class="btnrow">
+        <button id="saveBtn" class="primary">Save & Reconnect</button>
+        <button id="cancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "omnichat-desktop",
+  "version": "1.0.0",
+  "description": "OmniChat Desktop — unified Twitch + X + Kick chat aggregator (local-first Electron app)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "MarketBubble Vibe Code Challenge entry",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.17.0"
+  }
+}

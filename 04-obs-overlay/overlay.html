@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OmniChat Overlay</title>
+<style>
+  /* Transparent background so OBS composites it over video */
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #stage {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* newest at bottom */
+    padding: 16px 18px 14px 18px;
+    box-sizing: border-box;
+    gap: 8px;
+    pointer-events: none; /* let clicks pass through to OBS by default */
+  }
+
+  /* Filter toolbar — only visible when ?ui=1 (handy for desktop demo) */
+  #bar {
+    position: fixed;
+    top: 8px; left: 8px;
+    display: none;
+    gap: 6px;
+    z-index: 10;
+    pointer-events: auto;
+  }
+  #bar.show { display: flex; }
+  #bar button {
+    font: 600 12px "Segoe UI", sans-serif;
+    border: 0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    color: #fff;
+    opacity: 0.45;
+    background: #333;
+    transition: opacity .15s;
+    text-shadow: 0 1px 2px rgba(0,0,0,.8);
+  }
+  #bar button.on { opacity: 1; }
+  #bar button[data-src="twitch"] { background: #9146FF; }
+  #bar button[data-src="x"]      { background: #1D9BF0; }
+  #bar button[data-src="kick"]   { background: #53FC18; color:#06210b; text-shadow:none; }
+  #bar .status { font: 600 11px monospace; color:#fff; align-self:center; opacity:.7; text-shadow:0 1px 2px #000; }
+
+  .msg {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: 100%;
+    color: #fff;
+    /* Heavy legibility: outline + drop shadow so text reads over any video */
+    text-shadow:
+      -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+      0 2px 6px rgba(0,0,0,.9);
+    font-size: 22px;
+    line-height: 1.25;
+    animation: slidein .28s cubic-bezier(.2,.9,.3,1) both;
+    transition: opacity 1.2s ease;
+  }
+  .msg.fade { opacity: 0; }
+
+  @keyframes slidein {
+    from { opacity: 0; transform: translateX(-22px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: .4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.85);
+    box-shadow: 0 1px 4px rgba(0,0,0,.5);
+    flex: 0 0 auto;
+  }
+  .badge .em { font-size: 14px; }
+  .badge-twitch { background: #9146FF; }
+  .badge-x      { background: #1D9BF0; }
+  .badge-kick   { background: #53FC18; color:#06210b; text-shadow:none; }
+
+  .chan {
+    font-size: 14px;
+    font-weight: 600;
+    opacity: .85;
+    color: #d8d8e0;
+  }
+  .author { font-weight: 800; }
+  .author::after { content: ":"; color: #fff; font-weight: 800; }
+  .text { font-weight: 600; word-break: break-word; }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <button data-src="twitch" class="on">🎮 TWITCH</button>
+    <button data-src="x" class="on">𝕏 X</button>
+    <button data-src="kick" class="on">⚡ KICK</button>
+    <span class="status" id="status">starting…</span>
+  </div>
+  <div id="stage"></div>
+
+  <script src="overlay.js"></script>
+</body>
+</html>

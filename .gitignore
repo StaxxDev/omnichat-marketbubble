@@ -1,0 +1,17 @@
+node_modules
+.env
+dist
+build
+*.log
+.wrangler
+.next
+target
+__pycache__
+*.sqlite
+db.sqlite
+
+# python venv + local verify artifacts
+.venv/
+venv/
+verify.txt
+server.log

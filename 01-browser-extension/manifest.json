@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "OmniChat — Unified Stream Chat",
+  "version": "1.0.0",
+  "description": "Unified real-time chat aggregator: Twitch + Kick + X in one merged, labeled, filterable feed. Built for Ansem's live trading show.",
+  "permissions": ["storage", "alarms", "sidePanel"],
+  "host_permissions": [
+    "wss://irc-ws.chat.twitch.tv/*",
+    "wss://ws-us2.pusher.com/*",
+    "https://kick.com/*",
+    "https://api.twitter.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open OmniChat feed"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

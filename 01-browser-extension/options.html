@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmniChat — Settings</title>
+  <style>
+    :root { --bg:#0e0e10; --bg2:#18181b; --fg:#efeff1; --muted:#adadb8; --border:#2a2a2e; --accent:#9146FF; }
+    * { box-sizing: border-box; }
+    body { background:var(--bg); color:var(--fg); font-family:"Inter","Segoe UI",system-ui,sans-serif; margin:0; padding:24px; }
+    .wrap { max-width:640px; margin:0 auto; }
+    h1 { font-size:20px; margin:0 0 4px; }
+    .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+    fieldset { border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:16px; background:var(--bg2); }
+    legend { padding:0 8px; font-weight:700; font-size:13px; }
+    legend .em { font-size:14px; }
+    label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+    input, select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:#0e0e10; color:var(--fg); font-size:13px; }
+    input:focus, select:focus { outline:none; border-color:var(--accent); }
+    .hint { font-size:11px; color:var(--muted); margin-top:4px; }
+    .row2 { display:flex; gap:12px; }
+    .row2 > div { flex:1; }
+    .demo-toggle { display:flex; align-items:center; gap:10px; margin:6px 0; }
+    .demo-toggle input { width:auto; }
+    .demo-toggle label { margin:0; color:var(--fg); font-size:13px; }
+    .bar { display:flex; gap:10px; align-items:center; margin-top:8px; position:sticky; bottom:0; }
+    button { cursor:pointer; border:none; border-radius:8px; padding:10px 18px; font-weight:700; font-size:13px; }
+    #save { background:var(--accent); color:#fff; }
+    #save:hover { filter:brightness(1.1); }
+    #open { background:#1f1f23; color:var(--fg); border:1px solid var(--border); }
+    .saved { color:#2ecc40; font-size:12px; opacity:0; transition:opacity .2s; }
+    .saved.show { opacity:1; }
+    code { background:#0e0e10; padding:1px 5px; border-radius:4px; border:1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>OmniChat Settings</h1>
+    <div class="sub">Configure real channels, or leave everything blank to run in <strong>Demo Mode</strong>.</div>
+
+    <div class="demo-toggle">
+      <input type="checkbox" id="demo" />
+      <label for="demo">Force Demo Mode (synthetic feed from all three sources)</label>
+    </div>
+
+    <fieldset>
+      <legend><span class="em">🎮</span> Twitch <span style="color:#9146FF">(no API key)</span></legend>
+      <label for="twitchChannels">Channels (comma-separated logins)</label>
+      <input id="twitchChannels" placeholder="ansemtrades, xqc, summit1g" />
+      <div class="hint">Anonymous read-only IRC. Multiple channels supported.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend><span class="em">⚡</span> Kick <span style="color:#53FC18">(no API key)</span></legend>
+      <label for="kickChannels">Channels (comma-separated slugs)</label>
+      <input id="kickChannels" placeholder="trainwreckstv, adin" />
+      <label for="kickChatroomIds">Chatroom IDs override (optional, comma-separated, aligned to channels)</label>
+      <input id="kickChatroomIds" placeholder="leave blank — auto-resolved. Fill if Cloudflare blocks." />
+      <div class="hint">Kick is behind Cloudflare; if auto-resolve fails, paste chatroom IDs from <code>kick.com/api/v2/channels/&lt;slug&gt;</code>.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend><span class="em">𝕏</span> X / Twitter <span style="color:#1D9BF0">(bearer token, polling)</span></legend>
+      <label for="xBearerToken">Bearer Token</label>
+      <input id="xBearerToken" type="password" placeholder="AAAA... (stored locally in extension storage)" />
+      <div class="row2">
+        <div>
+          <label for="xMode">Mode</label>
+          <select id="xMode">
+            <option value="hashtag">hashtag</option>
+            <option value="mentions">mentions</option>
+            <option value="replies">replies</option>
+          </select>
+        </div>
+        <div>
+          <label for="xTarget">Target</label>
+          <input id="xTarget" placeholder="hashtag tag / @handle / conversation_id" />
+        </div>
+      </div>
+      <div class="hint">Polls X recent search every ~12s. <code>replies</code> uses a conversation_id, <code>mentions</code>/<code>hashtag</code> use a handle/tag.</div>
+    </fieldset>
+
+    <div class="bar">
+      <button id="save">Save</button>
+      <button id="open">Open Feed (side panel)</button>
+      <span id="saved" class="saved">Saved ✓ connectors reloaded</span>
+    </div>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

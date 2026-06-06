@@ -1,0 +1,14 @@
+{
+  "name": "omnichat-edge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Unified Twitch + X + Kick chat aggregator on Cloudflare Workers + a Durable Object fan-in hub.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OmniChat Bridge — Twitch · X · Kick</title>
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #121722; --line: #1e2533; --text: #e6e9ef; --muted: #8a93a6;
+    --twitch: #9146FF; --x: #1D9BF0; --kick: #53FC18;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  header {
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--panel);
+  }
+  .title { font-weight: 700; font-size: 16px; letter-spacing: .3px; }
+  .title .sub { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 8px; }
+  .filters { display: flex; gap: 8px; }
+  .filters button {
+    cursor: pointer; border: 1px solid var(--line); background: #0e131c; color: var(--text);
+    padding: 5px 12px; border-radius: 999px; font: inherit; font-size: 12px; user-select: none;
+    display: inline-flex; align-items: center; gap: 6px; transition: opacity .15s, border-color .15s;
+  }
+  .filters button[data-on="0"] { opacity: .38; }
+  .filters button .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .filters .twitch .dot { background: var(--twitch); }
+  .filters .x .dot { background: var(--x); }
+  .filters .kick .dot { background: var(--kick); }
+  .spacer { flex: 1; }
+  .badges { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 12px; }
+  .pill { padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); }
+  .pill.on { color: #0b0e14; background: var(--kick); border-color: var(--kick); font-weight: 700; }
+  .pill.demo { color: #0b0e14; background: #FFD166; border-color: #FFD166; font-weight: 700; }
+
+  #feed { flex: 1; overflow-y: auto; padding: 8px 0 14px; scroll-behavior: smooth; }
+  .row {
+    display: grid; grid-template-columns: 104px 132px 150px 1fr; gap: 10px; align-items: baseline;
+    padding: 5px 14px; border-bottom: 1px solid rgba(255,255,255,.03);
+  }
+  .row:hover { background: rgba(255,255,255,.02); }
+  .badge {
+    font-weight: 700; font-size: 11px; letter-spacing: .4px; padding: 2px 7px; border-radius: 5px;
+    display: inline-flex; align-items: center; gap: 4px; color: #07090d; white-space: nowrap;
+  }
+  .badge.twitch { background: var(--twitch); color: #fff; }
+  .badge.x { background: var(--x); color: #fff; }
+  .badge.kick { background: var(--kick); color: #07120a; }
+  .channel { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .author { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .text { word-break: break-word; }
+  .time { color: var(--muted); font-size: 11px; }
+
+  footer {
+    border-top: 1px solid var(--line); background: var(--panel); padding: 6px 14px;
+    color: var(--muted); font-size: 12px; display: flex; gap: 16px; align-items: center;
+  }
+  #pause { color: #FFD166; display: none; }
+  #pause.show { display: inline; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">OmniChat Bridge <span class="sub">Twitch · X · Kick → one labeled feed</span></div>
+    <div class="filters" id="filters">
+      <button class="twitch" data-src="twitch" data-on="1"><span class="dot"></span>🎮 TWITCH</button>
+      <button class="x" data-src="x" data-on="1"><span class="dot"></span>𝕏 X</button>
+      <button class="kick" data-src="kick" data-on="1"><span class="dot"></span>⚡ KICK</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="badges" id="badges">
+      <span class="pill" id="pill-demo">mode…</span>
+      <span class="pill" id="pill-tg">TG</span>
+      <span class="pill" id="pill-dc">Discord</span>
+    </div>
+  </header>
+
+  <div id="feed"></div>
+
+  <footer>
+    <span id="count">0 messages</span>
+    <span id="pause">⏸ paused (scroll to bottom to resume auto-scroll)</span>
+    <span class="spacer" style="flex:1"></span>
+    <span>newest at bottom · max 500 retained</span>
+  </footer>
+
+<script>
+(function () {
+  var META = { twitch: { emoji: '🎮', cls: 'twitch' }, x: { emoji: '𝕏', cls: 'x' }, kick: { emoji: '⚡', cls: 'kick' } };
+  var LABEL = { twitch: 'TWITCH', x: 'X', kick: 'KICK' };
+  var MAX = 500;
+  var feed = document.getElementById('feed');
+  var countEl = document.getElementById('count');
+  var pauseEl = document.getElementById('pause');
+  var filters = { twitch: true, x: true, kick: true };
+  var total = 0;
+  var autoScroll = true;
+
+  // ---- filter toggles ----
+  document.getElementById('filters').addEventListener('click', function (e) {
+    var btn = e.target.closest('button'); if (!btn) return;
+    var src = btn.getAttribute('data-src');
+    filters[src] = !filters[src];
+    btn.setAttribute('data-on', filters[src] ? '1' : '0');
+    feed.querySelectorAll('.row[data-src="' + src + '"]').forEach(function (r) {
+      r.style.display = filters[src] ? '' : 'none';
+    });
+  });
+
+  // ---- pause auto-scroll when user scrolls up ----
+  feed.addEventListener('scroll', function () {
+    var nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
+    autoScroll = nearBottom;
+    pauseEl.classList.toggle('show', !autoScroll);
+  });
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  function addRow(m) {
+    var meta = META[m.source] || { emoji: '', cls: '' };
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('data-src', m.source);
+    if (!filters[m.source]) row.style.display = 'none';
+    var authorColor = m.color && /^#?[0-9a-fA-F]{3,8}$/.test(m.color)
+      ? (m.color[0] === '#' ? m.color : '#' + m.color) : 'var(--text)';
+    var t = new Date(m.ts || Date.now());
+    var hh = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+    row.innerHTML =
+      '<span class="badge ' + meta.cls + '">' + meta.emoji + ' ' + (LABEL[m.source] || m.source) + '</span>' +
+      '<span class="channel" title="' + esc(m.channel) + '">#' + esc(m.channel) + '</span>' +
+      '<span class="author" style="color:' + authorColor + '" title="' + esc(m.author) + '">' + esc(m.author) + '</span>' +
+      '<span class="text"><span class="time">' + hh + '</span> ' + esc(m.text) + '</span>';
+    feed.appendChild(row);
+
+    while (feed.childElementCount > MAX) feed.removeChild(feed.firstChild);
+    total++;
+    countEl.textContent = total + ' message' + (total === 1 ? '' : 's');
+    if (autoScroll) feed.scrollTop = feed.scrollHeight;
+  }
+
+  // ---- meta (mode + sink badges) ----
+  fetch('/meta').then(function (r) { return r.json(); }).then(function (meta) {
+    var d = document.getElementById('pill-demo');
+    if (meta.demo) { d.textContent = 'DEMO MODE'; d.className = 'pill demo'; }
+    else { d.textContent = 'LIVE'; d.className = 'pill on'; }
+    var tg = document.getElementById('pill-tg');
+    tg.textContent = 'Telegram ' + (meta.sinks.telegram ? 'on' : 'off');
+    tg.className = 'pill' + (meta.sinks.telegram ? ' on' : '');
+    var dc = document.getElementById('pill-dc');
+    dc.textContent = 'Discord ' + (meta.sinks.discord ? 'on' : 'off');
+    dc.className = 'pill' + (meta.sinks.discord ? ' on' : '');
+  }).catch(function () {});
+
+  // ---- SSE stream ----
+  function connect() {
+    var es = new EventSource('/events');
+    es.onmessage = function (ev) {
+      try { addRow(JSON.parse(ev.data)); } catch (_) {}
+    };
+    es.onerror = function () { /* EventSource auto-reconnects per `retry:` */ };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>
