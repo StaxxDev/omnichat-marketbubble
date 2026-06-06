@@ -2,6 +2,16 @@
 
 **The brief:** build a unified live-chat aggregator that merges **Twitch + Kick + X** into one labeled, filterable feed for a co-stream show. **This repo ships 10 distinct architectures** of that same product — pick the one that best fits how you want to run the show, all sharing the same three connectors, the same unified message schema, and a zero-config Demo Mode.
 
+> 🏆 **Which should I submit?** For *the show*, in order: **#4 OBS Overlay** (chat literally on the broadcast), **#6 AI-Augmented** (the "we went further" wow — live AI summary + spam/sentiment), **#2 WebSocket Hub** (the safe shareable web app). See [RECORDING_GUIDE.md](RECORDING_GUIDE.md) for the record-and-submit steps + the "anything else" blurb.
+
+### Previews (verified running)
+
+| #6 AI-Augmented (hero) | #4 OBS Overlay | #2 WebSocket Hub |
+|---|---|---|
+| ![hero](preview-hero.png) | ![overlay](preview-overlay.png) | ![hub](preview-hub.png) |
+
+The hero runs with **real Claude** (claude-haiku-4-5) for live spam/sentiment + a "what chat is saying" summary, with **$ticker** + **host/⭐VIP** highlighting and a Market Bubble black-&-gold theme. It degrades to a local heuristic if the API is unavailable, so the feed never goes dark on stream.
+
 ---
 
 ## The 10 builds
