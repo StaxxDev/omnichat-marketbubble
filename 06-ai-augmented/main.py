@@ -23,7 +23,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Deque, Set
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import base64
+
+import httpx
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -251,6 +254,43 @@ async def agent(q: str = ""):
     """Ask the hosts' co-pilot a question, answered from cross-show memory + live chat."""
     answer = await ai.ask_agent(q, memory.recall_context(), list(_history))
     return JSONResponse({"q": q, "answer": answer, "mode": ai.ai_mode()})
+
+
+@app.post("/share/telegram")
+async def share_telegram(request: Request):
+    """
+    Send the recap to Telegram. Body: {target?, caption, image?(data-url png)}.
+    Bot token from env TG_BOT_TOKEN / TELEGRAM_BOT_TOKEN; target = chat id / @channel
+    (falls back to TG_CHAT_ID env). Sends a photo (the recap card) if image given, else text.
+    """
+    payload = await request.json()
+    token = os.environ.get("TG_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat = (payload.get("target") or "").strip() or os.environ.get("TG_CHAT_ID") \
+        or os.environ.get("TELEGRAM_CHAT_ID")
+    if not token:
+        return JSONResponse({"ok": False, "error": "No TG_BOT_TOKEN set in .env"}, status_code=400)
+    if not chat:
+        return JSONResponse({"ok": False, "error": "No target chat — enter a chat id / @channel"}, status_code=400)
+    caption = (payload.get("caption") or "")[:1000]
+    img = payload.get("image") or ""
+    try:
+        async with httpx.AsyncClient(timeout=25) as cl:
+            if img.startswith("data:image"):
+                raw = base64.b64decode(img.split(",", 1)[1])
+                r = await cl.post(
+                    f"https://api.telegram.org/bot{token}/sendPhoto",
+                    data={"chat_id": chat, "caption": caption},
+                    files={"photo": ("recap.png", raw, "image/png")},
+                )
+            else:
+                r = await cl.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json={"chat_id": chat, "text": caption, "disable_web_page_preview": True},
+                )
+        j = r.json()
+        return JSONResponse({"ok": bool(j.get("ok")), "error": None if j.get("ok") else j.get("description")})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 @app.get("/health")

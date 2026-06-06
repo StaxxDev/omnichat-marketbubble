@@ -22,6 +22,8 @@ The hero runs with **real Claude** (claude-haiku-4-5) for live spam/sentiment + 
 
 **Persistent co-pilot (learns across shows):** an **📋 End-of-Stream Recap** gives the host a producer's debrief — themes, audience questions to answer, follow-up segment ideas, and claims worth researching. Each recap is **committed to a SQLite memory** (`copilot.db`): distilled lessons, recurring tickers/topics, and per-user reputation accumulate across episodes. That memory is **recalled into future recaps** (so it flags "recurring again this week", returning contributors, repeat bots) and powers a **💬 Ask-the-co-pilot** agent the hosts can query ("who are my best contributors? what does chat keep asking?"). It gets sharper every show instead of starting cold.
 
+**Share the recap:** one click renders a branded **PNG card** of the summary (see `recap-card.png`), **🐦 Shares to X** (prefilled tweet intent, optional @handle), or **✈️ Sends to Telegram** (the PNG card via Bot API — set `TG_BOT_TOKEN` + a target chat/`@channel`). A handle/target field tags the post or routes the send.
+
 ---
 
 ## The 10 builds
