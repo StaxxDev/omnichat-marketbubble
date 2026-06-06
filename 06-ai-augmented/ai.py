@@ -297,10 +297,11 @@ def _heuristic_recap(recent: List[dict], top: list) -> dict:
     }
 
 
-async def host_recap(recent: List[dict], top: list) -> dict:
+async def host_recap(recent: List[dict], top: list, memory_context: str = "") -> dict:
     """
     End-of-stream debrief FOR THE HOST: themes, audience questions worth answering,
-    follow-up segment ideas, and claims worth researching. Heuristic fallback.
+    follow-up segment ideas, and claims worth researching. Conditioned on the
+    co-pilot's MEMORY of prior shows so it flags recurrence. Heuristic fallback.
     """
     if not recent:
         return {"mode": ai_mode(), "themes": [], "questions": [], "followups": [],
@@ -312,11 +313,15 @@ async def host_recap(recent: List[dict], top: list) -> dict:
                 for m in recent[-180:]
             ]
             transcript = "\n".join(lines)[:14000]
+            mem = (f"\n\n=== YOUR MEMORY FROM PRIOR SHOWS (use it!) ===\n{memory_context}\n"
+                   "When something recurs from memory, SAY SO (e.g. 'again this week', "
+                   "'returning contributor', 'known repeat bot'). Build on the past, don't repeat it cold."
+                   if memory_context else "")
             resp = await _client.messages.create(
                 model=MODEL,
-                max_tokens=700,
+                max_tokens=750,
                 system=(
-                    "You are the producer of a live crypto/markets show (Market Bubble, hosts "
+                    "You are the producer/co-pilot of a live crypto/markets show (Market Bubble, hosts "
                     "Ansem & Banks). The show just ended. Read the multi-platform chat transcript "
                     "and write a concise END-OF-STREAM DEBRIEF FOR THE HOST. Reply with ONLY a JSON "
                     "object, no prose/markdown, shape: "
@@ -327,7 +332,7 @@ async def host_recap(recent: List[dict], top: list) -> dict:
                     "followups = 3-5 concrete segment/topic ideas the host could do based on chat interest. "
                     "research = specific claims, tickers, or topics worth fact-checking or researching before next show. "
                     "sentiment = one line on overall mood. notable = standout contributors or moments. "
-                    "Keep each list item to one short line."
+                    "Keep each list item to one short line." + mem
                 ),
                 messages=[{"role": "user", "content": transcript}],
             )
@@ -342,3 +347,40 @@ async def host_recap(recent: List[dict], top: list) -> dict:
         except Exception as e:
             _trip_breaker(e)
     return _heuristic_recap(recent, top)
+
+
+async def ask_agent(question: str, memory_context: str, recent: List[dict]) -> str:
+    """
+    The hosts' co-pilot Q&A. Answers using accumulated MEMORY across shows plus the
+    current chat. e.g. 'who are my best contributors?', 'what does chat keep asking about?'.
+    """
+    q = (question or "").strip()
+    if not q:
+        return "Ask me about chat themes, your top contributors, recurring questions, or repeat bots."
+    if _claude_use() and _client:
+        try:
+            recent_lines = "\n".join(
+                f"[{m.get('source','?').upper()}] {m.get('author','?')}: {m.get('text','')}"
+                for m in recent[-60:]
+            )[:5000]
+            resp = await _client.messages.create(
+                model=MODEL,
+                max_tokens=320,
+                system=(
+                    "You are the persistent co-pilot for the hosts of a live crypto show (Market Bubble). "
+                    "You have MEMORY accumulated across past shows plus the current live chat. Answer the "
+                    "host's question concisely and practically (2-5 sentences), grounded ONLY in what you "
+                    "actually see in memory + chat. If you don't have the info, say so briefly.\n\n"
+                    f"=== MEMORY (prior shows) ===\n{memory_context or '(no prior shows yet)'}\n\n"
+                    f"=== CURRENT CHAT (recent) ===\n{recent_lines or '(quiet)'}"
+                ),
+                messages=[{"role": "user", "content": q}],
+            )
+            text = next((b.text for b in resp.content if b.type == "text"), "")
+            if text.strip():
+                return text.strip()
+        except Exception as e:
+            _trip_breaker(e)
+    # heuristic fallback: surface raw memory
+    return ("Co-pilot (offline mode) — here's what I remember:\n" + (memory_context or "no memory yet.")
+            + "\n(Connect an Anthropic key for full Q&A.)")

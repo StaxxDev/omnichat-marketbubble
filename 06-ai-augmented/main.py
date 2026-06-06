@@ -36,6 +36,8 @@ except Exception:
     pass
 
 import ai
+import memory
+from datetime import datetime, timezone
 from connectors import build_connector_tasks
 
 MAX_RETAINED = 500           # cap retained messages to bound memory
@@ -51,6 +53,7 @@ _loop_tasks: list = []
 # Per-user "meaningful contribution" stats. score = standouts*3 + messages.
 # Standouts (AI-judged high-signal posts) are weighted heavily so quality > spammy volume.
 _stats: dict = {}  # author -> {"msgs", "standouts", "source"}
+_bot_counts: dict = {}  # author -> bot-flagged message count (this session)
 
 
 def _bump_stats(author: str, source: str) -> None:
@@ -74,6 +77,18 @@ def _top_contributors(n: int = 8) -> list:
     ]
     rows.sort(key=lambda r: (r["standouts"], r["score"]), reverse=True)
     return rows[:n]
+
+
+def _session_user_rows() -> list:
+    """All this-session participants (incl. bots) for committing to persistent memory."""
+    rows = {}
+    for a, v in _stats.items():
+        rows[a] = {"author": a, "source": v["source"], "msgs": v["msgs"],
+                   "standouts": v["standouts"], "score": v["standouts"] * 3 + v["msgs"], "bots": 0}
+    for a, cnt in _bot_counts.items():
+        r = rows.setdefault(a, {"author": a, "source": "", "msgs": 0, "standouts": 0, "score": 0, "bots": 0})
+        r["bots"] += cnt
+    return list(rows.values())
 
 
 # --- Bot / raid detection (behavioral, synchronous — flags on screen) ------ #
@@ -147,7 +162,11 @@ async def _enrich_and_emit(msg: dict) -> None:
     """
     msg["bot"] = _bot_check(msg.get("author", ""), msg.get("text", ""))
     _history.append(msg)
-    if not msg["bot"]:   # bots don't earn contribution credit
+    if msg["bot"]:
+        a = msg.get("author", "")
+        if a:
+            _bot_counts[a] = _bot_counts.get(a, 0) + 1
+    else:                # bots don't earn contribution credit
         _bump_stats(msg.get("author", ""), msg.get("source", ""))
     await _broadcast({"type": "message", "data": msg})
     if ai.ai_enabled():
@@ -182,6 +201,7 @@ async def _summary_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Start connectors + summary loop on startup
+    memory.init()
     _loop_tasks.extend(build_connector_tasks(_enrich_and_emit))
     _loop_tasks.append(asyncio.create_task(_summary_loop()))
     _loop_tasks.append(asyncio.create_task(_stats_loop()))
@@ -204,11 +224,33 @@ async def index():
 
 
 @app.get("/recap")
-async def recap():
-    """End-of-stream host debrief: themes, audience questions, follow-ups, research areas."""
-    data = await ai.host_recap(list(_history), _top_contributors())
+async def recap(commit: int = 1):
+    """
+    End-of-stream host debrief, CONDITIONED on memory from prior shows, then COMMITTED
+    to the co-pilot's persistent memory so it shapes future analysis.
+    """
+    mem_ctx = memory.recall_context()
+    data = await ai.host_recap(list(_history), _top_contributors(), mem_ctx)
     data["messages"] = len(_history)
+    data["recalled"] = bool(mem_ctx)
+    if commit:
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        data["committed"] = memory.commit_recap(data, _session_user_rows(), len(_history), ts)
+    data["memory"] = memory.get_memory()
     return JSONResponse(data)
+
+
+@app.get("/memory")
+async def memory_view():
+    """The co-pilot's accumulated cross-show memory: lessons + persistent user reputation."""
+    return JSONResponse(memory.get_memory())
+
+
+@app.get("/agent")
+async def agent(q: str = ""):
+    """Ask the hosts' co-pilot a question, answered from cross-show memory + live chat."""
+    answer = await ai.ask_agent(q, memory.recall_context(), list(_history))
+    return JSONResponse({"q": q, "answer": answer, "mode": ai.ai_mode()})
 
 
 @app.get("/health")

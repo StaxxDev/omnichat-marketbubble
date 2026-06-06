@@ -18,7 +18,9 @@ Above: the AI build pulling **real live Twitch chat** (xqc + jynxzi) with **Clau
 
 The hero runs with **real Claude** (claude-haiku-4-5) for live spam/sentiment + a "what chat is saying" summary, with **$ticker** + **host/⭐VIP** highlighting and a Market Bubble black-&-gold theme. It degrades to a local heuristic if the API is unavailable, so the feed never goes dark on stream.
 
-**Engagement layer:** Claude also flags genuinely high-signal posts with a **💎 STANDOUT** badge (brief gold flash so a host can read it aloud), and a live **🏆 Top Contributors** leaderboard scores each user's *meaningful* contribution (`standouts×3 + messages`) so quality beats spammy volume — a real reason for chat to post well.
+**Engagement layer:** Claude also flags genuinely high-signal posts with a **💎 STANDOUT** badge (brief gold flash so a host can read it aloud), a live **🏆 Top Contributors** leaderboard scores each user's *meaningful* contribution (`standouts×3 + messages`), and likely bots/raids get a **🤖 BOT?** flag (dimmed; hosts/VIPs never flagged).
+
+**Persistent co-pilot (learns across shows):** an **📋 End-of-Stream Recap** gives the host a producer's debrief — themes, audience questions to answer, follow-up segment ideas, and claims worth researching. Each recap is **committed to a SQLite memory** (`copilot.db`): distilled lessons, recurring tickers/topics, and per-user reputation accumulate across episodes. That memory is **recalled into future recaps** (so it flags "recurring again this week", returning contributors, repeat bots) and powers a **💬 Ask-the-co-pilot** agent the hosts can query ("who are my best contributors? what does chat keep asking?"). It gets sharper every show instead of starting cold.
 
 ---
 

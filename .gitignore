@@ -15,3 +15,7 @@ db.sqlite
 venv/
 verify.txt
 server.log
+
+# co-pilot persistent memory (local)
+copilot.db
+*.db

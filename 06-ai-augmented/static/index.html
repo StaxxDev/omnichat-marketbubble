@@ -123,6 +123,16 @@
   .modal .close { float: right; cursor: pointer; color: var(--dim); font-size: 20px; line-height: 1;
     border: none; background: none; }
   .modal .close:hover { color: var(--txt); }
+  .modal .committed { color: var(--kick); font-size: 12px; background: rgba(83,252,24,.08);
+    border: 1px solid rgba(83,252,24,.25); border-radius: 6px; padding: 6px 9px; margin: 12px 0; }
+  .memchips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .askrow { display: flex; gap: 8px; margin-top: 4px; }
+  .askrow input { flex: 1; background: #0d1017; border: 1px solid var(--line); color: var(--txt);
+    border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .askrow button { border: 1px solid var(--gold); background: var(--gold); color: #0a0a0b;
+    font-weight: 700; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+  .askans { margin-top: 10px; color: var(--txt); font-size: 13px; white-space: pre-wrap;
+    line-height: 1.5; min-height: 4px; }
 
   .row.flag-spam { background: rgba(245,166,35,.08); }
   .row.flag-toxic { background: rgba(255,77,77,.10); }
@@ -343,6 +353,29 @@
     return `<h3>${title}</h3><ul>` +
       items.map((x) => `<li>${esc(x)}</li>`).join("") + `</ul>`;
   }
+  function memorySection(mem) {
+    if (!mem) return "";
+    const committed = mem.recaps != null
+      ? `<p class="committed">✓ Committed to co-pilot memory — ${mem.recaps} show(s), ${mem.lessons_count ?? mem.lessons} lessons, ${mem.users_count ?? mem.users} tracked users. This shapes future analysis.</p>`
+      : "";
+    let users = "";
+    if (mem.top_users && mem.top_users.length) {
+      users = `<h3>🧠 Reputation across shows</h3><div class="memchips">` +
+        mem.top_users.map((u) => `<span class="chip${u.bot_flags ? " bot" : ""}">` +
+          `<span class="nm">${esc(u.author)}</span>` +
+          (u.standouts ? `<span class="gem">💎${u.standouts}</span>` : "") +
+          (u.bot_flags ? `<span class="rk">🤖${u.bot_flags}</span>` : "") +
+          `<span class="sc">${u.sessions} show(s) · ${u.score} pts</span></span>`).join(" ") +
+        `</div>`;
+    }
+    let lessons = "";
+    if (mem.lessons && mem.lessons.length) {
+      lessons = listSection("📚 Recurring lessons learned",
+        mem.lessons.filter((l) => l.hits > 1).slice(0, 8).map((l) => `[${l.kind}] ${l.text} (seen ${l.hits}×)`));
+    }
+    return committed + users + lessons;
+  }
+
   async function openRecap() {
     recapBg.classList.add("show");
     recapSub.textContent = "Generating…";
@@ -350,19 +383,48 @@
     try {
       const r = await fetch("/recap");
       const d = await r.json();
-      recapSub.textContent = `${d.messages || 0} messages analyzed · ${d.mode === "claude" ? "Claude" : "heuristic"} debrief`;
+      recapSub.textContent = `${d.messages || 0} messages · ${d.mode === "claude" ? "Claude" : "heuristic"} debrief`
+        + (d.recalled ? " · informed by memory of prior shows" : "");
       recapBody.innerHTML =
         (d.sentiment ? `<p><strong>Mood:</strong> ${esc(d.sentiment)}</p>` : "") +
         listSection("🗣️ What chat talked about", d.themes) +
         listSection("❓ Audience questions to answer", d.questions) +
         listSection("🎬 Follow-up segment ideas", d.followups) +
         listSection("🔎 Worth researching / fact-checking", d.research) +
-        (d.notable ? `<h3>⭐ Notable contributors</h3><p>${esc(d.notable)}</p>` : "");
+        (d.notable ? `<h3>⭐ Notable contributors</h3><p>${esc(d.notable)}</p>` : "") +
+        memorySection(d.memory) +
+        `<h3>💬 Ask the co-pilot</h3>
+         <div class="askrow">
+           <input id="askInput" placeholder="e.g. who are my best contributors? what does chat keep asking?" />
+           <button id="askBtn">Ask</button>
+         </div>
+         <div id="askAnswer" class="askans"></div>`;
+      wireAsk();
     } catch (e) {
       recapBody.innerHTML = "Could not generate recap (is the server running?).";
     }
   }
+
+  function wireAsk() {
+    const inp = document.getElementById("askInput");
+    const btn = document.getElementById("askBtn");
+    const ans = document.getElementById("askAnswer");
+    if (!btn) return;
+    const ask = async () => {
+      const q = inp.value.trim();
+      if (!q) return;
+      ans.textContent = "Thinking…";
+      try {
+        const r = await fetch("/agent?q=" + encodeURIComponent(q));
+        const d = await r.json();
+        ans.textContent = d.answer || "(no answer)";
+      } catch (e) { ans.textContent = "Co-pilot unavailable."; }
+    };
+    btn.addEventListener("click", ask);
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+  }
   document.getElementById("recapBtn").addEventListener("click", openRecap);
+  if (location.hash === "#recap") setTimeout(openRecap, 400);  // deep-link to open the recap
   document.getElementById("recapClose").addEventListener("click", () => recapBg.classList.remove("show"));
   recapBg.addEventListener("click", (e) => { if (e.target === recapBg) recapBg.classList.remove("show"); });
 
