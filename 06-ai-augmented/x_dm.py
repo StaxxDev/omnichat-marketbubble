@@ -73,9 +73,8 @@ async def _resolve_user_id(cl: httpx.AsyncClient, handle: str) -> Optional[str]:
     if not handle:
         return None
     url = f"https://api.twitter.com/2/users/by/username/{handle}"
-    bearer = os.environ.get("X_BEARER_TOKEN", "")
-    headers = {"Authorization": f"Bearer {bearer}"} if bearer else {"Authorization": _oauth_header("GET", url)}
-    r = await cl.get(url, headers=headers)
+    # Resolve via OAuth 1.0a user context (self-sufficient; doesn't depend on the bearer).
+    r = await cl.get(url, headers={"Authorization": _oauth_header("GET", url)})
     if r.status_code == 200:
         return (r.json().get("data") or {}).get("id")
     return None
