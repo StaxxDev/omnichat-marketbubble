@@ -267,3 +267,78 @@ async def summarize_chat(recent: List[dict]) -> Optional[str]:
         except Exception as e:
             _trip_breaker(e)
     return _heuristic_summary(recent)
+
+
+# --- End-of-stream host recap -------------------------------------------- #
+_QUESTION_RE = _re.compile(r"\?\s*$")
+
+
+def _heuristic_recap(recent: List[dict], top: list) -> dict:
+    tickers = {}
+    questions = []
+    for m in recent:
+        txt = (m.get("text") or "").strip()
+        for tag in _CASHTAG_RE.findall(txt):
+            tickers[tag.upper()] = tickers.get(tag.upper(), 0) + 1
+        if _QUESTION_RE.search(txt) and len(txt) > 12 and len(questions) < 6:
+            questions.append(f'{m.get("author","?")}: {txt}')
+    top_tickers = sorted(tickers, key=tickers.get, reverse=True)[:5]
+    bull = sum(1 for m in recent if _BULL_RE.search(m.get("text", "") or ""))
+    bear = sum(1 for m in recent if _BEAR_RE.search(m.get("text", "") or ""))
+    mood = "net bullish 🚀" if bull > bear else "net bearish 📉" if bear > bull else "mixed 🤔"
+    return {
+        "mode": "heuristic",
+        "themes": [f"{t} ({tickers[t]} mentions)" for t in top_tickers] or ["General market chatter"],
+        "questions": questions or ["No clear audience questions detected."],
+        "followups": [f"Give your take on {t} — chat kept bringing it up." for t in top_tickers[:3]],
+        "research": [f"Verify the claims/levels mentioned around {t}." for t in top_tickers[:3]],
+        "sentiment": f"Chat was {mood} over {len(recent)} messages.",
+        "notable": ", ".join(f'{r["author"]} (💎{r["standouts"]})' for r in top[:3] if r) or "—",
+    }
+
+
+async def host_recap(recent: List[dict], top: list) -> dict:
+    """
+    End-of-stream debrief FOR THE HOST: themes, audience questions worth answering,
+    follow-up segment ideas, and claims worth researching. Heuristic fallback.
+    """
+    if not recent:
+        return {"mode": ai_mode(), "themes": [], "questions": [], "followups": [],
+                "research": [], "sentiment": "No chat yet.", "notable": "—"}
+    if _claude_use() and _client:
+        try:
+            lines = [
+                f"[{m.get('source', '?').upper()}] {m.get('author', '?')}: {m.get('text', '')}"
+                for m in recent[-180:]
+            ]
+            transcript = "\n".join(lines)[:14000]
+            resp = await _client.messages.create(
+                model=MODEL,
+                max_tokens=700,
+                system=(
+                    "You are the producer of a live crypto/markets show (Market Bubble, hosts "
+                    "Ansem & Banks). The show just ended. Read the multi-platform chat transcript "
+                    "and write a concise END-OF-STREAM DEBRIEF FOR THE HOST. Reply with ONLY a JSON "
+                    "object, no prose/markdown, shape: "
+                    "{\"themes\":[..],\"questions\":[..],\"followups\":[..],\"research\":[..],"
+                    "\"sentiment\":\"..\",\"notable\":\"..\"}. "
+                    "themes = 3-5 main things chat discussed. "
+                    "questions = up to 6 real audience questions/requests the host should answer next time (quote briefly, with who asked). "
+                    "followups = 3-5 concrete segment/topic ideas the host could do based on chat interest. "
+                    "research = specific claims, tickers, or topics worth fact-checking or researching before next show. "
+                    "sentiment = one line on overall mood. notable = standout contributors or moments. "
+                    "Keep each list item to one short line."
+                ),
+                messages=[{"role": "user", "content": transcript}],
+            )
+            out = next((b.text for b in resp.content if b.type == "text"), "")
+            data = _extract_json(out)
+            if data and isinstance(data, dict):
+                data["mode"] = "claude"
+                for k in ("themes", "questions", "followups", "research"):
+                    if not isinstance(data.get(k), list):
+                        data[k] = [str(data.get(k))] if data.get(k) else []
+                return data
+        except Exception as e:
+            _trip_breaker(e)
+    return _heuristic_recap(recent, top)

@@ -361,6 +361,8 @@ _DEMO_AUTHORS = [
     "pumpItLou", "diamondHandz", "exitLiquidity", "wenLambo", "rektRadar",
     # VIPs sprinkled in so the gold ⭐ host-highlight visibly fires on camera
     "blknoiz06", "Banks", "MarketBubble",
+    # bot-style handles so the 🤖 BOT? flag visibly fires (matches the flyer's user91/user1337)
+    "user1337", "user91", "cryptodrop882931",
 ]
 _DEMO_TEXTS = [
     "ansem cooking again 🔥", "that $HYPE entry was clean", "$SOL looking strong rn",

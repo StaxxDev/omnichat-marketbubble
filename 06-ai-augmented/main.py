@@ -76,6 +76,35 @@ def _top_contributors(n: int = 8) -> list:
     return rows[:n]
 
 
+# --- Bot / raid detection (behavioral, synchronous — flags on screen) ------ #
+import re as _re
+
+_BOT_NAME_RE = _re.compile(r"(^user\d+$|\d{6,}$|^[a-z]+\d{4,}$)", _re.I)
+# Hosts/VIPs are never bots (configurable for the show).
+_VIP_AUTHORS = {"blknoiz06", "banks", "ansem", "marketbubble"}
+# Recency window: a "raid" is a burst of the SAME line, not a phrase that recurs all night.
+_recent_norm: Deque[str] = deque(maxlen=30)
+
+
+def _norm_text(t: str) -> str:
+    return _re.sub(r"\s+", " ", (t or "").strip().lower())
+
+
+def _bot_check(author: str, text: str) -> bool:
+    """Flag likely bots: bot-style handles, or the same line repeated in a short burst (raid)."""
+    a = (author or "").lower().lstrip("@")
+    if a in _VIP_AUTHORS:                # hosts/VIPs are never flagged
+        return False
+    if author and _BOT_NAME_RE.search(author):  # bot-style handle (user1337, name123456)
+        return True
+    n = _norm_text(text)
+    if not n:
+        return False
+    burst = _recent_norm.count(n)        # times this exact line appeared in the last 30 msgs
+    _recent_norm.append(n)
+    return burst >= 4                    # 5th identical line in the window -> raid/bot
+
+
 async def _broadcast(payload: dict) -> None:
     """Send a JSON payload to every connected browser; drop dead sockets."""
     if not _clients:
@@ -116,8 +145,10 @@ async def _enrich_and_emit(msg: dict) -> None:
     message IMMEDIATELY (the feed never waits on the AI), then enriches in the
     background and patches the row in place. If AI is off, it's just a plain feed.
     """
+    msg["bot"] = _bot_check(msg.get("author", ""), msg.get("text", ""))
     _history.append(msg)
-    _bump_stats(msg.get("author", ""), msg.get("source", ""))
+    if not msg["bot"]:   # bots don't earn contribution credit
+        _bump_stats(msg.get("author", ""), msg.get("source", ""))
     await _broadcast({"type": "message", "data": msg})
     if ai.ai_enabled():
         asyncio.create_task(_enrich_async(msg))
@@ -170,6 +201,14 @@ STATIC_DIR = Path(__file__).parent / "static"
 @app.get("/")
 async def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/recap")
+async def recap():
+    """End-of-stream host debrief: themes, audience questions, follow-ups, research areas."""
+    data = await ai.host_recap(list(_history), _top_contributors())
+    data["messages"] = len(_history)
+    return JSONResponse(data)
 
 
 @app.get("/health")

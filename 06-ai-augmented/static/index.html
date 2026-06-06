@@ -101,6 +101,29 @@
   .chip .gem { color: var(--gold); font-weight: 700; }
   .chip .sc { color: var(--dim); }
 
+  /* Likely-bot / raid messages — flagged + dimmed */
+  .row.bot { opacity: .5; }
+  .bot-badge { font-size: 9px; font-weight: 800; color: #fff; background: #555; border: 1px solid #777;
+    padding: 1px 5px; border-radius: 3px; flex: none; letter-spacing: .3px; }
+
+  /* End-of-stream Host Recap button + modal */
+  .recap-btn { border: 1px solid var(--gold); background: transparent; color: var(--gold);
+    padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 700; }
+  .recap-btn:hover { background: rgba(232,200,121,.12); }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.72); display: none;
+    align-items: center; justify-content: center; z-index: 50; }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--gold); border-radius: 12px;
+    max-width: 740px; width: 92%; max-height: 86vh; overflow-y: auto; padding: 20px 24px; }
+  .modal h2 { margin: 0; color: var(--gold); font-size: 19px; }
+  .modal .sub { color: var(--dim); font-size: 12px; margin: 2px 0 14px; }
+  .modal h3 { color: var(--gold); font-size: 11px; letter-spacing: .6px; text-transform: uppercase;
+    margin: 16px 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .modal ul { margin: 0; padding-left: 20px; } .modal li { margin: 4px 0; }
+  .modal .close { float: right; cursor: pointer; color: var(--dim); font-size: 20px; line-height: 1;
+    border: none; background: none; }
+  .modal .close:hover { color: var(--txt); }
+
   .row.flag-spam { background: rgba(245,166,35,.08); }
   .row.flag-toxic { background: rgba(255,77,77,.10); }
   .flagtag {
@@ -131,6 +154,7 @@
         <div class="toggle" data-src="twitch"><span class="b"></span>🎮 Twitch</div>
         <div class="toggle" data-src="x"><span class="b"></span>𝕏 X</div>
         <div class="toggle" data-src="kick"><span class="b"></span>⚡ Kick</div>
+        <button class="recap-btn" id="recapBtn">📋 End-of-Stream Recap</button>
       </div>
     </div>
     <div class="banner">
@@ -145,6 +169,15 @@
 
   <div id="feed"></div>
   <div class="paused" id="pauseBar">▼ Paused (scrolled up) — click to resume auto-scroll</div>
+
+  <div class="modal-bg" id="recapBg">
+    <div class="modal">
+      <button class="close" id="recapClose">×</button>
+      <h2>📋 End-of-Stream Recap</h2>
+      <div class="sub" id="recapSub">for the host</div>
+      <div id="recapBody">Generating…</div>
+    </div>
+  </div>
 
 <script>
 (function () {
@@ -223,6 +256,7 @@
     const vip = isVip(m.author);
     const row = document.createElement("div");
     row.className = "row" + (vip ? " host" : "") + (m.standout ? " standout" : "") +
+      (m.bot ? " bot" : "") +
       (m.flag === "spam" ? " flag-spam" : m.flag === "toxic" ? " flag-toxic" : "");
     row.dataset.src = m.source;
     if (m.id) { row.dataset.id = m.id; rowsById.set(m.id, row); }
@@ -238,6 +272,7 @@
       `<span class="badge ${m.source}">${meta.emoji} ${meta.label}</span>` +
       `<span class="chan">${esc(m.channel)}</span>` +
       (vip ? `<span class="vip">⭐ VIP</span>` : "") +
+      (m.bot ? `<span class="bot-badge">🤖 BOT?</span>` : "") +
       (m.standout ? `<span class="so-badge">💎 STANDOUT</span>` : "") +
       flagTag +
       `<span class="author"${color ? ` style="color:${esc(color)}"` : ""}>${esc(m.author)}</span>` +
@@ -298,6 +333,38 @@
         `<span class="sc">${r.score} pts · ${r.msgs} msg</span></span>`;
     }).join(" ");
   }
+
+  // End-of-stream Host Recap modal
+  const recapBg = document.getElementById("recapBg");
+  const recapBody = document.getElementById("recapBody");
+  const recapSub = document.getElementById("recapSub");
+  function listSection(title, items) {
+    if (!items || !items.length) return "";
+    return `<h3>${title}</h3><ul>` +
+      items.map((x) => `<li>${esc(x)}</li>`).join("") + `</ul>`;
+  }
+  async function openRecap() {
+    recapBg.classList.add("show");
+    recapSub.textContent = "Generating…";
+    recapBody.innerHTML = "Analyzing the full session chat…";
+    try {
+      const r = await fetch("/recap");
+      const d = await r.json();
+      recapSub.textContent = `${d.messages || 0} messages analyzed · ${d.mode === "claude" ? "Claude" : "heuristic"} debrief`;
+      recapBody.innerHTML =
+        (d.sentiment ? `<p><strong>Mood:</strong> ${esc(d.sentiment)}</p>` : "") +
+        listSection("🗣️ What chat talked about", d.themes) +
+        listSection("❓ Audience questions to answer", d.questions) +
+        listSection("🎬 Follow-up segment ideas", d.followups) +
+        listSection("🔎 Worth researching / fact-checking", d.research) +
+        (d.notable ? `<h3>⭐ Notable contributors</h3><p>${esc(d.notable)}</p>` : "");
+    } catch (e) {
+      recapBody.innerHTML = "Could not generate recap (is the server running?).";
+    }
+  }
+  document.getElementById("recapBtn").addEventListener("click", openRecap);
+  document.getElementById("recapClose").addEventListener("click", () => recapBg.classList.remove("show"));
+  recapBg.addEventListener("click", (e) => { if (e.target === recapBg) recapBg.classList.remove("show"); });
 
   function setAI(on, mode) {
     aiText.textContent = !on ? "AI: OFF (plain)"
