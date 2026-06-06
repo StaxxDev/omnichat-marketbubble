@@ -141,6 +141,7 @@
   .sharebtns .sx { background: #1d9bf0; color: #fff; border-color: #1d9bf0; }
   .sharebtns .sxdm { background: #000; color: #fff; border-color: #555; }
   .sharebtns .stg { background: #2aabee; color: #fff; border-color: #2aabee; }
+  .sharebtns .spdf { background: #b9342c; color: #fff; border-color: #b9342c; }
   .sharebtns .sdl { background: transparent; color: var(--gold); border-color: var(--gold); }
 
   .row.flag-spam { background: rgba(245,166,35,.08); }
@@ -415,9 +416,10 @@
          <canvas id="cardCanvas" width="1000" height="560" class="cardcanvas"></canvas>
          <div class="sharebtns">
            <button id="shareX" class="sx">🐦 Share to X</button>
-           <button id="shareXdm" class="sxdm">✉️ Send X DM</button>
-           <button id="shareTg" class="stg">✈️ Send to Telegram</button>
-           <button id="dlPng" class="sdl">🖼️ Download PNG</button>
+           <button id="shareXdm" class="sxdm">✉️ Send X DM (PNG)</button>
+           <button id="shareTg" class="stg">✈️ Telegram (PDF)</button>
+           <button id="dlPdf" class="spdf">📄 Download PDF</button>
+           <button id="dlPng" class="sdl">🖼️ PNG</button>
          </div>
          <div id="shareResult" class="askans"></div>`;
       wireAsk();
@@ -442,12 +444,20 @@
     return y;
   }
   function shareText(d, handle) {
-    const mood = (d.sentiment || "").replace(/\s+/g, " ").slice(0, 90);
-    const topics = (d.themes || []).slice(0, 3).map((t) => t.replace(/\s*\(.*?\)/g, "")).join(" · ");
-    let t = `📋 Market Bubble chat recap${handle ? " " + handle : ""}\n${mood}`;
-    if (topics) t += `\n🔥 ${topics}`;
-    if (d.notable && d.notable !== "—") t += `\n⭐ ${d.notable}`;
-    return t.slice(0, 270);
+    const clean = (s) => String(s || "").replace(/\s*\(.*?\)/g, "").replace(/\s+/g, " ").trim();
+    const mood = clean(d.sentiment).split(/[.;—-]/)[0].trim().slice(0, 80);
+    const topics = (d.themes || []).slice(0, 3).map((t) => {
+      const m = clean(t).match(/\$[A-Za-z]{2,10}/g);
+      return m ? m[0] : clean(t).split(" ").slice(0, 2).join(" ");
+    }).filter(Boolean);
+    const next = clean((d.followups || [])[0] || "").replace(/^[-•\s]+/, "").slice(0, 70);
+    const mvp = clean(d.notable || "").split(/[,(]/)[0].trim().slice(0, 28);
+    const lines = [`📋 Market Bubble — Chat Recap${handle ? " " + handle : ""}`];
+    if (mood) lines.push(`Mood: ${mood}`);
+    if (topics.length) lines.push(`🔥 ${topics.join(" · ")}`);
+    if (next) lines.push(`🎬 Next: ${next}`);
+    if (mvp && mvp !== "—") lines.push(`⭐ MVP: ${mvp}`);
+    return lines.join("\n").slice(0, 275);
   }
   function drawRecapCard(d, handle) {
     const cv = document.getElementById("cardCanvas");
@@ -513,20 +523,34 @@
       } catch (e) { result.textContent = "X DM send failed."; }
     });
     document.getElementById("shareTg").addEventListener("click", async () => {
-      result.textContent = "Sending to Telegram…";
+      result.textContent = "Sending PDF to Telegram…";
       try {
-        const cv = document.getElementById("cardCanvas");
         const r = await fetch("/share/telegram", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             target: handleInput.value.trim(),
             caption: shareText(d, handleInput.value.trim()),
-            image: cv.toDataURL("image/png"),
+            format: "pdf",
+            recap: d,
           }),
         });
         const j = await r.json();
-        result.textContent = j.ok ? "✓ Sent to Telegram." : "Telegram error: " + (j.error || "unknown");
+        result.textContent = j.ok ? "✓ Sent recap PDF to Telegram." : "Telegram error: " + (j.error || "unknown");
       } catch (e) { result.textContent = "Telegram send failed."; }
+    });
+    document.getElementById("dlPdf").addEventListener("click", async () => {
+      result.textContent = "Building PDF…";
+      try {
+        const r = await fetch("/recap.pdf", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d),
+        });
+        if (!r.ok) { const j = await r.json(); result.textContent = "PDF error: " + (j.error || r.status); return; }
+        const blob = await r.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "market-bubble-recap.pdf"; a.click();
+        URL.revokeObjectURL(a.href);
+        result.textContent = "✓ PDF downloaded.";
+      } catch (e) { result.textContent = "PDF download failed."; }
     });
   }
 
