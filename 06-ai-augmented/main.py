@@ -40,6 +40,7 @@ except Exception:
 
 import ai
 import memory
+import x_dm
 from datetime import datetime, timezone
 from connectors import build_connector_tasks
 
@@ -291,6 +292,23 @@ async def share_telegram(request: Request):
         return JSONResponse({"ok": bool(j.get("ok")), "error": None if j.get("ok") else j.get("description")})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/share/x-dm")
+async def share_x_dm(request: Request):
+    """Send the recap as a Direct Message on X (text + PNG). Body: {recipient, text, image?}."""
+    payload = await request.json()
+    res = await x_dm.send_recap_dm(
+        (payload.get("recipient") or "").strip(),
+        payload.get("text") or "",
+        payload.get("image") or "",
+    )
+    return JSONResponse(res, status_code=200 if res.get("ok") else 400)
+
+
+@app.get("/share/x-dm/status")
+async def x_dm_status():
+    return JSONResponse({"configured": x_dm.has_creds()})
 
 
 @app.get("/health")
