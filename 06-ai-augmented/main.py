@@ -284,25 +284,31 @@ def _recap_html(d: dict) -> str:
         lis = "".join(f"<li>{esc(i)}</li>" for i in items)
         return f"<h2>{esc(title)}</h2><ul>{lis}</ul>"
 
-    return f"""<!doctype html><html><head><meta charset="utf-8"><style>
+    mark = ('<svg width="30" height="30" viewBox="0 0 64 64" fill="none" style="vertical-align:middle">'
+            '<path d="M11 13 H53 V45 H25 L15 55 V45 H11 Z" stroke="#e8ff9c" stroke-width="5" stroke-linejoin="round"/>'
+            '<path d="M18 41 L28 31 L35 37 L52 12" stroke="#e8ff9c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>'
+            '<path d="M43 12 H53 V22" stroke="#e8ff9c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+    return f"""<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet"><style>
 @page {{ size: Letter; margin: 0; }}
 * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }}
-body {{ margin: 0; background: #0a0a0b; color: #f3ede0;
-  font: 15px/1.55 Segoe UI, Arial, sans-serif; }}
+body {{ margin: 0; background: #0a0a0a; color: #f5f5f5;
+  font: 15px/1.55 'DM Sans', Segoe UI, Arial, sans-serif; }}
 .page {{ padding: 48px 54px; min-height: 100vh; }}
-.bar {{ height: 6px; background: linear-gradient(90deg,#E8C879,#b9a25a); border-radius: 3px; }}
-.eyebrow {{ color:#E8C879; font-weight:800; letter-spacing:1px; font-size:12px; text-transform:uppercase; margin-top:18px; }}
-h1 {{ font-size:32px; margin:6px 0 2px; }} h1 .g {{ color:#E8C879; }}
-.meta {{ color:#9a9384; font-size:13px; margin-bottom:6px; }}
+.bar {{ height: 6px; background: linear-gradient(90deg,#e8ff9c,#b6d96a); border-radius: 3px; }}
+.brandrow {{ display:flex; align-items:center; gap:10px; margin-top:18px; }}
+.eyebrow {{ color:#e8ff9c; font-family:'Host Grotesk',sans-serif; font-weight:700; letter-spacing:.12em; font-size:12px; text-transform:uppercase; }}
+h1 {{ font-family:'Host Grotesk',sans-serif; font-weight:800; font-size:32px; letter-spacing:-.02em; margin:6px 0 2px; }} h1 .g {{ color:#e8ff9c; }}
+.meta {{ color:#858585; font-size:13px; margin-bottom:6px; }}
 .mood {{ font-size:18px; margin:14px 0 6px; }}
-h2 {{ color:#E8C879; font-size:13px; letter-spacing:.6px; text-transform:uppercase;
-  border-bottom:1px solid #2a2620; padding-bottom:5px; margin:20px 0 8px; }}
+h2 {{ color:#e8ff9c; font-family:'Host Grotesk',sans-serif; font-weight:700; font-size:13px; letter-spacing:.6px; text-transform:uppercase;
+  border-bottom:1px solid #232323; padding-bottom:5px; margin:20px 0 8px; }}
 ul {{ margin:0; padding-left:22px; }} li {{ margin:5px 0; }}
-.foot {{ color:#9a9384; font-size:11px; border-top:1px solid #2a2620; padding-top:12px; margin-top:26px; }}
+.foot {{ color:#858585; font-size:11px; border-top:1px solid #232323; padding-top:12px; margin-top:26px; }}
 .k {{ color:#53FC18; }}
 </style></head><body><div class="page">
 <div class="bar"></div>
-<div class="eyebrow">◎ Market Bubble · End-of-Stream Chat Recap</div>
+<div class="brandrow">{mark}<div class="eyebrow">Market Bubble · End-of-Stream Chat Recap</div></div>
 <h1><span class="g">Producer's</span> Debrief</h1>
 <div class="meta">{d.get('messages',0)} messages analyzed · {'Claude' if d.get('mode')=='claude' else 'heuristic'} co-pilot</div>
 <div class="mood"><b>Mood:</b> {esc(d.get('sentiment','—'))}</div>

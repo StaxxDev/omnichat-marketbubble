@@ -41,7 +41,7 @@ Record the browser at http://localhost:8790 and say, roughly:
 2. Point at the **source badges** (🎮 TWITCH / 𝕏 X / ⚡ KICK) and **channel labels**.
 3. Click the **Twitch / X / Kick toggles** to show source filtering on/off.
 4. Point at the **AI banner** ("what chat is saying") and the **spam tag + sentiment emojis** — *"a Claude layer summarizes chat and flags spam live."*
-5. Point at the gold **⭐VIP** rows and **$TICKER** highlights — *"tuned for the show: hosts and cashtags pop."*
+5. Point at the lime **⭐VIP** rows and **$TICKER** highlights — *"tuned for the show: hosts and cashtags pop."*
 6. Close: *"And there are 10 architectures in the repo — overlay, extension, desktop, edge, SaaS, bot — pick what fits the show."*
 
 Optional power-move: also show **#4 OBS overlay** for 10 seconds (it's literally chat ON the broadcast):
@@ -61,7 +61,7 @@ Open in browser:  04-obs-overlay/overlay.html?demo=1
 
 > Everyone else built one aggregator. I built **10 different architectures** so you can pick what fits the show — an on-stream **OBS overlay** (chat scrolling on the broadcast), an **AI layer** that auto-summarizes what chat's talking about + flags spam with sentiment, plus a browser extension, desktop app, edge-scaled (Cloudflare Durable Object) version for big audiences, a Telegram/Discord bridge, and a multi-tenant SaaS.
 >
-> All three sources are real: **Twitch** (anonymous IRC over WebSocket, no key), **Kick** (Pusher WebSocket), and **X** (API v2 polling) — each message carries a clear **source label**, with source-filter toggles, multi-channel/co-stream support, **$ticker highlighting**, and **host/VIP highlighting** tuned for Market Bubble's black-&-gold look.
+> All three sources are real: **Twitch** (anonymous IRC over WebSocket, no key), **Kick** (Pusher WebSocket), and **X** (API v2 polling) — each message carries a clear **source label**, with source-filter toggles, multi-channel/co-stream support, **$ticker highlighting**, and **host/VIP highlighting** tuned to match Market Bubble's brand (near-black + lime #e8ff9c, speech-bubble+arrow logo).
 >
 > The demo video is the AI-augmented build; the repo is the full menu of 10. The AI degrades gracefully to a local heuristic if the API is down, so the feed never goes dark on stream.
 

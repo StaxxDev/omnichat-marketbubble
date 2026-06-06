@@ -349,6 +349,53 @@ async def host_recap(recent: List[dict], top: list, memory_context: str = "") ->
     return _heuristic_recap(recent, top)
 
 
+def _timeline_lines(recent: List[dict], limit: int = 120) -> str:
+    """
+    Render chat with TIME markers so the agent can answer time-scoped questions
+    ('the opener', 'first 10 min', 'last 5 min'). Each line is prefixed with how
+    many minutes before 'now' (the latest message) it landed: [-12m], [-0m], ...
+    """
+    window = [m for m in recent[-limit:] if m.get("text")]
+    if not window:
+        return ""
+    now = max((int(m.get("ts") or 0) for m in window), default=0)
+    out = []
+    for m in window:
+        ts = int(m.get("ts") or 0)
+        mins = max(0, (now - ts) // 60000) if (now and ts) else 0
+        out.append(
+            f"[-{mins:>2}m][{m.get('source','?').upper()}] {m.get('author','?')}: {m.get('text','')}"
+        )
+    return "\n".join(out)[:7000]
+
+
+def _facts_block(recent: List[dict]) -> str:
+    """Hard, pre-computed facts so the agent cites numbers instead of estimating them."""
+    msgs = [m for m in recent if m.get("text")]
+    if not msgs:
+        return "No chat captured yet this session."
+    ts_vals = [int(m.get("ts") or 0) for m in msgs if m.get("ts")]
+    span_min = ((max(ts_vals) - min(ts_vals)) // 60000) if len(ts_vals) >= 2 else 0
+    tickers, authors, sources = {}, {}, {}
+    for m in msgs:
+        txt = m.get("text", "") or ""
+        for tag in _CASHTAG_RE.findall(txt):
+            tickers[tag.upper()] = tickers.get(tag.upper(), 0) + 1
+        a = m.get("author", "?")
+        authors[a] = authors.get(a, 0) + 1
+        s = (m.get("source", "?") or "?").upper()
+        sources[s] = sources.get(s, 0) + 1
+    top_tk = sorted(tickers.items(), key=lambda kv: kv[1], reverse=True)[:6]
+    top_au = sorted(authors.items(), key=lambda kv: kv[1], reverse=True)[:6]
+    parts = [
+        f"Messages this window: {len(msgs)} over ~{span_min} min "
+        f"({'·'.join(f'{k} {v}' for k, v in sources.items())}).",
+        "Most-mentioned tickers: " + (", ".join(f"{t} ×{c}" for t, c in top_tk) or "none"),
+        "Most-active chatters: " + (", ".join(f"{a} ×{c}" for a, c in top_au) or "none"),
+    ]
+    return "\n".join(parts)
+
+
 async def ask_agent(question: str, memory_context: str, recent: List[dict]) -> str:
     """
     The hosts' co-pilot Q&A. Answers using accumulated MEMORY across shows plus the
@@ -359,20 +406,29 @@ async def ask_agent(question: str, memory_context: str, recent: List[dict]) -> s
         return "Ask me about chat themes, your top contributors, recurring questions, or repeat bots."
     if _claude_use() and _client:
         try:
-            recent_lines = "\n".join(
-                f"[{m.get('source','?').upper()}] {m.get('author','?')}: {m.get('text','')}"
-                for m in recent[-60:]
-            )[:5000]
+            timeline = _timeline_lines(recent)
+            facts = _facts_block(recent)
             resp = await _client.messages.create(
                 model=MODEL,
-                max_tokens=320,
+                max_tokens=380,
                 system=(
-                    "You are the persistent co-pilot for the hosts of a live crypto show (Market Bubble). "
-                    "You have MEMORY accumulated across past shows plus the current live chat. Answer the "
-                    "host's question concisely and practically (2-5 sentences), grounded ONLY in what you "
-                    "actually see in memory + chat. If you don't have the info, say so briefly.\n\n"
+                    "You are the persistent co-pilot for the hosts of a live crypto show (Market Bubble, "
+                    "hosts Ansem & Banks). You have MEMORY across past shows, PRE-COMPUTED FACTS for the "
+                    "current session, and a TIME-STAMPED chat log (each line tagged [-Nm] = minutes before "
+                    "now, so [-0m] is just now and [-10m] is ten minutes ago).\n\n"
+                    "HOW TO ANSWER:\n"
+                    "- Lead with the answer. Be concrete: cite specific tickers, names, and the FACT counts "
+                    "(e.g. '$VVV came up 7×, mostly from regulars').\n"
+                    "- For time-scoped questions ('opener', 'first 10 min', 'last 5 min'), use the [-Nm] tags "
+                    "to scope to that window and report what chat was doing then.\n"
+                    "- You see CHAT, not the hosts' audio. If asked what the host SAID/covered, answer from "
+                    "what chat reacted to in that window and say so in one short clause — then give a useful "
+                    "read. NEVER end by asking the host to tell you what they covered; you do the work.\n"
+                    "- 2-5 sentences, practical, no preamble. Ground every claim in the facts/log/memory below; "
+                    "if something truly isn't there, say so in half a sentence and move on.\n\n"
                     f"=== MEMORY (prior shows) ===\n{memory_context or '(no prior shows yet)'}\n\n"
-                    f"=== CURRENT CHAT (recent) ===\n{recent_lines or '(quiet)'}"
+                    f"=== SESSION FACTS (pre-computed, trust these counts) ===\n{facts}\n\n"
+                    f"=== CURRENT CHAT (time-stamped, newest last) ===\n{timeline or '(quiet)'}"
                 ),
                 messages=[{"role": "user", "content": q}],
             )
@@ -381,6 +437,6 @@ async def ask_agent(question: str, memory_context: str, recent: List[dict]) -> s
                 return text.strip()
         except Exception as e:
             _trip_breaker(e)
-    # heuristic fallback: surface raw memory
-    return ("Co-pilot (offline mode) — here's what I remember:\n" + (memory_context or "no memory yet.")
-            + "\n(Connect an Anthropic key for full Q&A.)")
+    # heuristic fallback: surface the pre-computed facts + raw memory (still useful offline)
+    return ("Co-pilot (offline mode).\n" + _facts_block(recent) + "\n\nFrom memory:\n"
+            + (memory_context or "no memory yet.") + "\n(Connect an Anthropic key for full Q&A.)")

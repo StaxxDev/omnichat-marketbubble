@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OmniChat — Unified Twitch + X + Kick Chat for Market Bubble</title>
+<meta name="description" content="One real-time, source-labeled chat feed across Twitch, X and Kick — with an AI co-pilot for the hosts. Built for the Market Bubble $10k Vibe Code Challenge." />
+<meta property="og:title" content="OmniChat — for Market Bubble" />
+<meta property="og:description" content="One real-time, source-labeled chat feed across Twitch, X and Kick, with an AI co-pilot for the hosts." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0a; --bg2:#0f0f0f; --panel:#121212; --line:#232323;
+    --txt:#f5f5f5; --dim:#858585; --lime:#e8ff9c;
+    --twitch:#9146FF; --x:#1D9BF0; --kick:#53FC18;
+    --disp:'Host Grotesk', 'Inter', system-ui, sans-serif;
+    --body:'DM Sans', 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing:border-box; } html,body { margin:0; }
+  body { background:var(--bg); color:var(--txt); font:16px/1.65 var(--body); -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(900px 500px at 75% -8%, rgba(232,255,156,.06), transparent 60%); }
+  .wrap { max-width:980px; margin:0 auto; padding:48px 22px 80px; }
+
+  /* brand lockup */
+  .brand { display:flex; align-items:center; gap:13px; }
+  .mark { width:38px; height:38px; color:var(--lime); flex:0 0 auto; }
+  .brand .name { font-family:var(--disp); font-weight:800; font-size:19px; letter-spacing:-.01em; line-height:1; }
+  .brand .name small { display:block; color:var(--dim); font-weight:500; font-size:12px; letter-spacing:.02em; margin-top:3px; }
+
+  .eyebrow { color:var(--lime); font-family:var(--disp); font-weight:700; letter-spacing:.14em; font-size:12px; text-transform:uppercase; margin:40px 0 0; }
+  h1 { font-family:var(--disp); font-weight:800; font-size:48px; line-height:1.04; letter-spacing:-.02em; margin:12px 0 10px; }
+  h1 .g { color:var(--lime); }
+  .tag { color:var(--dim); font-size:19px; max-width:660px; }
+  .badges { display:flex; gap:9px; flex-wrap:wrap; margin:24px 0 8px; }
+  .b { font-family:var(--disp); font-weight:700; font-size:12px; padding:6px 13px; border-radius:999px; letter-spacing:.02em; }
+  .b.tw { background:var(--twitch); color:#fff; } .b.x { background:#fff; color:#000; } .b.ki { background:var(--kick); color:#0a0a0a; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:13px; margin:32px 0; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; transition:border-color .15s; }
+  .card:hover { border-color:#3a3a3a; }
+  .card h3 { font-family:var(--disp); margin:0 0 6px; font-size:16px; font-weight:700; }
+  .card .n { color:var(--lime); font-weight:800; font-family:var(--disp); }
+  .card p { margin:0; color:var(--dim); font-size:14px; }
+
+  .hero { border:1px solid rgba(232,255,156,.35); border-radius:16px; padding:24px 26px;
+    background:linear-gradient(180deg, rgba(232,255,156,.07), transparent 70%); margin:32px 0; }
+  .hero h2 { font-family:var(--disp); margin:0 0 10px; color:var(--lime); font-weight:800; }
+  .hero ul { margin:10px 0 0; padding-left:20px; } .hero li { margin:6px 0; }
+  .hero li strong { color:var(--txt); }
+
+  h2.sec { font-family:var(--disp); font-weight:700; letter-spacing:-.01em; border-bottom:1px solid var(--line); padding-bottom:9px; margin-top:44px; }
+  footer { color:var(--dim); font-size:13px; margin-top:50px; border-top:1px solid var(--line); padding-top:20px; }
+  footer .mark { width:22px; height:22px; vertical-align:-5px; margin-right:7px; }
+  a { color:var(--lime); text-decoration:none; } a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <!-- Market Bubble mark: speech bubble + breakout trend arrow -->
+      <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <path d="M11 13 H53 V45 H25 L15 55 V45 H11 Z" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round"/>
+        <path d="M18 41 L28 31 L35 37 L52 12" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M43 12 H53 V22" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="name">OmniChat<small>for Market Bubble</small></div>
+    </div>
+
+    <div class="eyebrow">Market Bubble · $10,000 Vibe Code Challenge</div>
+    <h1>One <span class="g">live feed</span> for Twitch, X &amp; Kick</h1>
+    <p class="tag">A unified, real-time chat aggregator with clear per-message source labels — plus an AI co-pilot that moderates, highlights, and briefs the hosts. Built for <strong>prediction-market discourse</strong>, shipped as <strong>10 distinct architectures</strong> so the show can pick what fits.</p>
+    <div class="badges">
+      <span class="b tw">🎮 TWITCH</span><span class="b x">𝕏 X</span><span class="b ki">⚡ KICK</span>
+    </div>
+
+    <div class="hero">
+      <h2>The AI co-pilot (hero build)</h2>
+      <ul>
+        <li><strong>Live moderation</strong> — spam/toxicity flags + per-message sentiment, powered by Claude.</li>
+        <li><strong>Standout posts</strong> &amp; a <strong>contribution leaderboard</strong> — quality beats spammy volume.</li>
+        <li><strong>Bot / raid flagging</strong> on screen; hosts &amp; VIPs are never flagged.</li>
+        <li><strong>End-of-stream recap</strong> — themes, audience questions, follow-up ideas, things to research.</li>
+        <li><strong>Persistent memory</strong> — recaps + user reputation accumulate across shows and sharpen future analysis; ask the co-pilot anything, scoped by time.</li>
+        <li><strong>Share</strong> — branded recap card (PNG), one-page PDF brief, post to X, send to Telegram, or DM it.</li>
+      </ul>
+    </div>
+
+    <h2 class="sec">The 10 architectures</h2>
+    <div class="grid">
+      <div class="card"><h3><span class="n">01</span> Browser Extension</h3><p>Chrome MV3 — connects to all 3 sources from the service worker; native side panel.</p></div>
+      <div class="card"><h3><span class="n">02</span> WebSocket Hub</h3><p>Node + React — robust fan-in server, the safe shareable web app.</p></div>
+      <div class="card"><h3><span class="n">03</span> Edge / Durable Object</h3><p>Cloudflare Worker — one DO holds the upstreams, fans out to all viewers.</p></div>
+      <div class="card"><h3><span class="n">04</span> OBS Overlay</h3><p>Transparent broadcast overlay — chat on the stream with source badges.</p></div>
+      <div class="card"><h3><span class="n">05</span> Go / SSE</h3><p>Single binary, goroutine-per-source, native SSE — high throughput.</p></div>
+      <div class="card"><h3><span class="n">06</span> AI Co-Pilot ★</h3><p>FastAPI + Claude — moderation, recaps, memory, sharing. The hero.</p></div>
+      <div class="card"><h3><span class="n">07</span> Desktop App</h3><p>Electron — local-first, tokens stay on the host machine.</p></div>
+      <div class="card"><h3><span class="n">08</span> Bot Bridge</h3><p>Pipes all 3 into a Telegram/Discord channel + a live web table.</p></div>
+      <div class="card"><h3><span class="n">09</span> SaaS</h3><p>Next.js + Prisma — multi-tenant rooms, history, analytics.</p></div>
+      <div class="card"><h3><span class="n">10</span> Bun Lite</h3><p>Bun + Hono — one-file server, fastest cold start.</p></div>
+    </div>
+
+    <h2 class="sec">How the connectors work</h2>
+    <div class="grid">
+      <div class="card"><h3>🎮 Twitch</h3><p>Anonymous IRC over WebSocket (justinfan) — reads any channel, no key.</p></div>
+      <div class="card"><h3>⚡ Kick</h3><p>Pusher WebSocket on the channel's chatroom — no key.</p></div>
+      <div class="card"><h3>𝕏 X</h3><p>API v2 recent-search polling (replies / mentions / hashtag).</p></div>
+    </div>
+
+    <footer>
+      <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <path d="M11 13 H53 V45 H25 L15 55 V45 H11 Z" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round"/>
+        <path d="M18 41 L28 31 L35 37 L52 12" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M43 12 H53 V22" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Built for the <strong>Market Bubble</strong> $10,000 Vibe Code Challenge · hosted by Banks &amp; Ansem.
+      Unified chat aggregator — Twitch + X + Kick, one real-time feed, source-labeled.
+    </footer>
+  </div>
+</body>
+</html>
