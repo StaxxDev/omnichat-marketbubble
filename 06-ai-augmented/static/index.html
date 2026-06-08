@@ -39,11 +39,12 @@
   .status .dot { display:inline-block; width:8px; height:8px; border-radius:50%;
     background:#666; margin-right:5px; vertical-align:middle; }
   .status .dot.on { background: var(--kick); }
-  .toggles { display: flex; gap: 8px; margin-left: auto; }
+  .toggles { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
   .toggle {
     border: 1px solid var(--line); background: #1b1b1b; color: var(--txt);
     padding: 5px 11px; border-radius: 999px; cursor: pointer; font-size: 12px;
     font-weight: 600; user-select: none; transition: all .12s;
+    white-space: nowrap; flex: 0 0 auto;
   }
   .toggle .b { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:middle; }
   .toggle.off { opacity: .38; text-decoration: line-through; }
@@ -118,7 +119,8 @@
 
   /* End-of-stream Host Recap button + modal */
   .recap-btn { border: 1px solid var(--gold); background: transparent; color: var(--gold);
-    padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 700; }
+    padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 700;
+    white-space: nowrap; flex: 0 0 auto; }
   .recap-btn:hover { background: rgba(232,255,156,.12); }
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.72); display: none;
     align-items: center; justify-content: center; z-index: 50; }
@@ -201,6 +203,24 @@
   .mkt .odd.yes { color: var(--kick); } .mkt .odd.no { color: var(--toxic); } .mkt .odd.lead { color: var(--gold); }
   .mkt .vol { font-size: 10px; color: var(--dim); flex: none; }
   .markets .empty { color: var(--dim); font-size: 12px; }
+
+  /* ── Mobile / narrow screens: keep button text on one line, tighten chrome ── */
+  @media (max-width: 560px) {
+    header { padding: 9px 10px; gap: 7px; }
+    .logo { font-size: 14px; gap: 7px; }
+    .logo .mark { width: 19px; height: 19px; }
+    .toggles { margin-left: 0; width: 100%; gap: 6px; }
+    .toggle, .recap-btn { padding: 6px 10px; font-size: 11px; }
+    .recap-btn { margin-left: auto; }          /* keep recap pinned right of the wrap row */
+    .banner, .contrib, .markets { padding: 6px 9px; }
+    .banner .txt, .contrib, .markets .lead { font-size: 12px; }
+    /* HUD: let the gauges share the row evenly instead of overflowing */
+    .hud { gap: 6px; }
+    .gauge { min-width: 0; flex: 1 1 30%; padding: 6px 8px; }
+    .gauge .val { font-size: 16px; }
+    .mkt { max-width: 78vw; }
+    .mkt .q { max-width: 46vw; }
+  }
 </style>
 </head>
 <body>
