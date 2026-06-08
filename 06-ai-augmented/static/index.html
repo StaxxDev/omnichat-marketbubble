@@ -236,7 +236,7 @@
         <div class="toggle" data-src="twitch"><span class="b"></span>🎮 Twitch</div>
         <div class="toggle" data-src="x"><span class="b"></span>𝕏 X</div>
         <div class="toggle" data-src="kick"><span class="b"></span>⚡ Kick</div>
-        <div class="toggle botfilter" id="botToggle" title="Hide messages flagged as likely bots / raids">🤖 Hide bots</div>
+        <div class="toggle botfilter" id="botToggle" title="Hide likely bots / raids and AI-flagged spam">🧹 Hide bots &amp; spam</div>
         <button class="recap-btn" id="recapBtn">📋 End-of-Stream Recap</button>
       </div>
     </div>
@@ -320,10 +320,14 @@
 
   let botHidden = false;   // hide messages flagged as likely bots / raids
 
-  // Re-apply all feed filters (source toggles + hide-bots) to every row.
+  // A row is "junk" if it's a likely bot/raid OR AI-flagged spam.
+  function isJunk(row) {
+    return row.classList.contains("bot") || row.classList.contains("flag-spam");
+  }
+  // Re-apply all feed filters (source toggles + hide-bots/spam) to every row.
   function refilter() {
     feed.querySelectorAll(".row").forEach((r) => {
-      const hide = hidden[r.dataset.src] || (botHidden && r.classList.contains("bot"));
+      const hide = hidden[r.dataset.src] || (botHidden && isJunk(r));
       r.style.display = hide ? "none" : "";
     });
   }
@@ -343,7 +347,7 @@
   botToggle.addEventListener("click", () => {
     botHidden = !botHidden;
     botToggle.classList.toggle("active", botHidden);
-    botToggle.textContent = botHidden ? "🤖 Bots hidden" : "🤖 Hide bots";
+    botToggle.textContent = botHidden ? "🧹 Bots & spam hidden" : "🧹 Hide bots & spam";
     refilter();
   });
 
@@ -373,7 +377,7 @@
       (m.flag === "spam" ? " flag-spam" : m.flag === "toxic" ? " flag-toxic" : "");
     row.dataset.src = m.source;
     if (m.id) { row.dataset.id = m.id; rowsById.set(m.id, row); }
-    if (hidden[m.source] || (botHidden && m.bot)) row.style.display = "none";
+    if (hidden[m.source] || (botHidden && (m.bot || m.flag === "spam"))) row.style.display = "none";
 
     const color = m.color && /^#/.test(m.color) ? m.color : "";
     const senti = m.sentiment ? `<span class="senti">${esc(m.sentiment)}</span>` : "";
@@ -413,6 +417,8 @@
         tag.textContent = p.flag.toUpperCase();
         row.querySelector(".badge").after(tag);
       }
+      // if the junk filter is on, a late spam verdict should pull the row immediately
+      if (p.flag === "spam" && botHidden) row.style.display = "none";
     }
     if (p.sentiment) {
       const slot = row.querySelector(".senti-slot");
