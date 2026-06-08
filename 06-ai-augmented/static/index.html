@@ -50,6 +50,8 @@
   .toggle[data-src="twitch"] .b { background: var(--twitch); }
   .toggle[data-src="x"] .b { background: var(--x); }
   .toggle[data-src="kick"] .b { background: var(--kick); }
+  .toggle.botfilter { opacity: 1; text-decoration: none; }
+  .toggle.botfilter.active { background: var(--toxic); border-color: var(--toxic); color: #fff; }
 
   .banner {
     padding: 7px 10px; border-radius: 8px; background: #141414;
@@ -184,10 +186,6 @@
   .split { display: flex; height: 7px; border-radius: 4px; overflow: hidden; margin-top: 3px; background:#000; }
   .split span { display: block; height: 100%; }
   .split .stw { background: var(--twitch); } .split .sx { background: var(--x); } .split .ski { background: var(--kick); }
-  .gauge.alert { border-color: var(--toxic); }
-  .gauge.alert.on { animation: raidpulse 1s ease-in-out infinite; }
-  @keyframes raidpulse { 0%,100% { background:#141414; } 50% { background: rgba(255,77,77,.18); } }
-  .gauge .raidv { color: var(--dim); } .gauge.alert.on .raidv { color: var(--toxic); }
 
   /* ── Prediction-market odds panel ('what chat's betting on') ─────── */
   .markets { background: #141414; border: 1px solid var(--line); border-radius: 9px;
@@ -218,6 +216,7 @@
         <div class="toggle" data-src="twitch"><span class="b"></span>🎮 Twitch</div>
         <div class="toggle" data-src="x"><span class="b"></span>𝕏 X</div>
         <div class="toggle" data-src="kick"><span class="b"></span>⚡ Kick</div>
+        <div class="toggle botfilter" id="botToggle" title="Hide messages flagged as likely bots / raids">🤖 Hide bots</div>
         <button class="recap-btn" id="recapBtn">📋 End-of-Stream Recap</button>
       </div>
     </div>
@@ -237,8 +236,6 @@
       <div class="gauge" style="min-width:120px"><span class="lab">Source split</span>
         <span class="val" id="gSplit" style="font-size:11px;color:var(--dim)">— · — · —</span>
         <div class="split"><span class="stw" id="spTw" style="width:33%"></span><span class="sx" id="spX" style="width:33%"></span><span class="ski" id="spKi" style="width:34%"></span></div></div>
-      <div class="gauge alert" id="gRaid"><span class="lab">Raid / bots</span>
-        <span class="val raidv" id="gRaidV">clear</span></div>
     </div>
     <div class="markets" id="markets">
       <span class="lead">📊 CHAT'S BETTING ON<small>live Polymarket odds</small></span>
@@ -301,16 +298,33 @@
       (_, pre, tag) => `${pre}<span class="cash">${tag}</span>`);
   }
 
+  let botHidden = false;   // hide messages flagged as likely bots / raids
+
+  // Re-apply all feed filters (source toggles + hide-bots) to every row.
+  function refilter() {
+    feed.querySelectorAll(".row").forEach((r) => {
+      const hide = hidden[r.dataset.src] || (botHidden && r.classList.contains("bot"));
+      r.style.display = hide ? "none" : "";
+    });
+  }
+
   // Source-filter toggles: show/hide each source
-  document.querySelectorAll(".toggle").forEach((el) => {
+  document.querySelectorAll(".toggle[data-src]").forEach((el) => {
     el.addEventListener("click", () => {
       const src = el.dataset.src;
       hidden[src] = !hidden[src];
       el.classList.toggle("off", hidden[src]);
-      feed.querySelectorAll(`[data-src="${src}"]`).forEach((r) => {
-        r.style.display = hidden[src] ? "none" : "";
-      });
+      refilter();
     });
+  });
+
+  // Hide-bots toggle: filter likely bot/raid messages out of the feed
+  const botToggle = document.getElementById("botToggle");
+  botToggle.addEventListener("click", () => {
+    botHidden = !botHidden;
+    botToggle.classList.toggle("active", botHidden);
+    botToggle.textContent = botHidden ? "🤖 Bots hidden" : "🤖 Hide bots";
+    refilter();
   });
 
   // Pause auto-scroll when the user scrolls up
@@ -339,7 +353,7 @@
       (m.flag === "spam" ? " flag-spam" : m.flag === "toxic" ? " flag-toxic" : "");
     row.dataset.src = m.source;
     if (m.id) { row.dataset.id = m.id; rowsById.set(m.id, row); }
-    if (hidden[m.source]) row.style.display = "none";
+    if (hidden[m.source] || (botHidden && m.bot)) row.style.display = "none";
 
     const color = m.color && /^#/.test(m.color) ? m.color : "";
     const senti = m.sentiment ? `<span class="senti">${esc(m.sentiment)}</span>` : "";
@@ -471,8 +485,7 @@
   }
   const gMpm = document.getElementById("gMpm"), gMood = document.getElementById("gMood"),
         gNeedle = document.getElementById("gNeedle"), gSplit = document.getElementById("gSplit"),
-        spTw = document.getElementById("spTw"), spX = document.getElementById("spX"), spKi = document.getElementById("spKi"),
-        gRaid = document.getElementById("gRaid"), gRaidV = document.getElementById("gRaidV");
+        spTw = document.getElementById("spTw"), spX = document.getElementById("spX"), spKi = document.getElementById("spKi");
   function hudTick() {
     const now = Date.now();
     while (hudLog.length && now - hudLog[0].ts > 60000) {
@@ -496,11 +509,6 @@
     const ptw = Math.round(tw / st * 100), px = Math.round(x / st * 100), pki = 100 - ptw - px;
     spTw.style.width = ptw + "%"; spX.style.width = px + "%"; spKi.style.width = Math.max(0, pki) + "%";
     gSplit.textContent = win.length ? `${ptw}🎮 · ${px}𝕏 · ${Math.max(0, pki)}⚡` : "— · — · —";
-    // raid / bot pressure (last 30s)
-    let bots = 0; for (const e of win) if (e.bot && now - e.ts < 30000) bots++;
-    const hot = bots >= 3;
-    gRaid.classList.toggle("on", hot);
-    gRaidV.textContent = hot ? `⚠ ${bots} bot${bots > 1 ? "s" : ""}/30s` : bots ? `${bots} flagged` : "clear";
   }
   setInterval(hudTick, 1000);
 
