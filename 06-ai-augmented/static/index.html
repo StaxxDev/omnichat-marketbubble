@@ -167,6 +167,42 @@
     font-size: 12px; color: var(--kick); display: none;
   }
   .paused.show { display: block; }
+
+  /* ── Live show HUD (director's gauges) ───────────────────────────── */
+  .hud { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; }
+  .gauge { background: #141414; border: 1px solid var(--line); border-radius: 9px;
+    padding: 6px 11px; min-width: 96px; display: flex; flex-direction: column; gap: 3px; }
+  .gauge .lab { font-size: 9px; font-weight: 800; letter-spacing: .5px; color: var(--dim); text-transform: uppercase; }
+  .gauge .val { font-family: var(--disp); font-weight: 800; font-size: 18px; line-height: 1; }
+  .gauge .val small { font-size: 11px; font-weight: 600; color: var(--dim); }
+  /* sentiment needle */
+  .needle { position: relative; height: 7px; border-radius: 4px; margin-top: 3px;
+    background: linear-gradient(90deg, var(--toxic), #b9a25a 50%, var(--kick)); }
+  .needle i { position: absolute; top: -2px; width: 3px; height: 11px; border-radius: 2px;
+    background: #fff; box-shadow: 0 0 4px #000; transition: left .6s ease; }
+  /* source split bar */
+  .split { display: flex; height: 7px; border-radius: 4px; overflow: hidden; margin-top: 3px; background:#000; }
+  .split span { display: block; height: 100%; }
+  .split .stw { background: var(--twitch); } .split .sx { background: var(--x); } .split .ski { background: var(--kick); }
+  .gauge.alert { border-color: var(--toxic); }
+  .gauge.alert.on { animation: raidpulse 1s ease-in-out infinite; }
+  @keyframes raidpulse { 0%,100% { background:#141414; } 50% { background: rgba(255,77,77,.18); } }
+  .gauge .raidv { color: var(--dim); } .gauge.alert.on .raidv { color: var(--toxic); }
+
+  /* ── Prediction-market odds panel ('what chat's betting on') ─────── */
+  .markets { background: #141414; border: 1px solid var(--line); border-radius: 9px;
+    padding: 7px 11px; display: flex; align-items: center; gap: 10px; overflow-x: auto; white-space: nowrap; }
+  .markets .lead { font-size: 10px; font-weight: 800; letter-spacing: .5px; color: var(--gold); flex: none;
+    font-family: var(--disp); }
+  .markets .lead small { display:block; color: var(--dim); font-weight: 600; letter-spacing:0; font-size:9px; }
+  .mkt { display: inline-flex; align-items: center; gap: 8px; background: #1b1b1b; border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 11px; flex: none; text-decoration: none; color: var(--txt); max-width: 360px; }
+  .mkt.hot { border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(232,255,156,.30); }
+  .mkt .q { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px; }
+  .mkt .odd { font-family: var(--disp); font-weight: 800; font-size: 12px; flex: none; }
+  .mkt .odd.yes { color: var(--kick); } .mkt .odd.no { color: var(--toxic); } .mkt .odd.lead { color: var(--gold); }
+  .mkt .vol { font-size: 10px; color: var(--dim); flex: none; }
+  .markets .empty { color: var(--dim); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -192,6 +228,21 @@
     <div class="contrib">
       <span class="lead">🏆 TOP CONTRIBUTORS</span>
       <span id="contribList" style="color:var(--dim)">tracking meaningful contributions…</span>
+    </div>
+    <div class="hud" id="hud">
+      <div class="gauge"><span class="lab">Msgs / min</span><span class="val" id="gMpm">0</span></div>
+      <div class="gauge"><span class="lab">Sentiment</span>
+        <span class="val" id="gMood" style="font-size:13px">—</span>
+        <div class="needle"><i id="gNeedle" style="left:50%"></i></div></div>
+      <div class="gauge" style="min-width:120px"><span class="lab">Source split</span>
+        <span class="val" id="gSplit" style="font-size:11px;color:var(--dim)">— · — · —</span>
+        <div class="split"><span class="stw" id="spTw" style="width:33%"></span><span class="sx" id="spX" style="width:33%"></span><span class="ski" id="spKi" style="width:34%"></span></div></div>
+      <div class="gauge alert" id="gRaid"><span class="lab">Raid / bots</span>
+        <span class="val raidv" id="gRaidV">clear</span></div>
+    </div>
+    <div class="markets" id="markets">
+      <span class="lead">📊 CHAT'S BETTING ON<small>live Polymarket odds</small></span>
+      <span class="empty" id="marketsList">reading the board…</span>
     </div>
   </header>
 
@@ -361,6 +412,97 @@
         `<span class="sc">${r.score} pts · ${r.msgs} msg</span></span>`;
     }).join(" ");
   }
+
+  // ── Prediction-market odds panel ("what chat's betting on") ──────────
+  const marketsList = document.getElementById("marketsList");
+  function oddClass(name) {
+    const n = String(name).toLowerCase();
+    return n === "yes" ? "yes" : n === "no" ? "no" : "lead";
+  }
+  function fmtVol(v) {
+    v = +v || 0;
+    return v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? "$" + Math.round(v / 1e3) + "k" : "$" + Math.round(v);
+  }
+  function marketChip(m, hot) {
+    const o = (m.odds || [])[0] || { name: "—", pct: 0 };
+    const a = document.createElement("a");
+    a.className = "mkt" + (hot ? " hot" : "");
+    a.href = m.url || "#"; a.target = "_blank"; a.rel = "noopener";
+    a.title = m.question + (m.matched ? "  ·  matched: " + m.matched : "");
+    a.innerHTML = `<span class="q">${esc(m.question)}</span>` +
+      `<span class="odd ${oddClass(o.name)}">${esc(o.name)} ${o.pct}%</span>` +
+      `<span class="vol">${fmtVol(m.vol24)}</span>`;
+    return a;
+  }
+  function renderMarkets(d) {
+    const matched = (d && d.matched) || [], trending = (d && d.trending) || [];
+    const rows = matched.length ? matched : trending;
+    if (!rows.length) { marketsList.textContent = "no markets matched yet"; return; }
+    marketsList.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    rows.slice(0, 6).forEach((m) => frag.appendChild(marketChip(m, matched.length > 0)));
+    // if we showed matched markets, append a couple trending as ambient context
+    if (matched.length && trending.length) {
+      trending.slice(0, 2).forEach((m) => frag.appendChild(marketChip(m, false)));
+    }
+    marketsList.replaceChildren(frag);
+  }
+
+  // ── Live show HUD (director's gauges) ────────────────────────────────
+  const BULL = new Set(["🚀", "📈", "🔥", "💚", "🤑", "😄", "🟢", "💪"]);
+  const BEAR = new Set(["📉", "🤬", "😡", "💀", "🩸", "🔴", "😱"]);
+  const hudLog = [];                       // {ts, source, bot, mood}  (rolling 60s)
+  const hudById = new Map();               // id -> entry, so patches can set mood
+  function moodOf(senti) {
+    if (!senti) return 0;
+    for (const ch of senti) { if (BULL.has(ch)) return 1; if (BEAR.has(ch)) return -1; }
+    return 0;
+  }
+  function hudPush(m) {
+    const e = { ts: Date.now(), source: m.source, bot: !!m.bot, mood: moodOf(m.sentiment) };
+    hudLog.push(e);
+    if (m.id) hudById.set(m.id, e);
+  }
+  function hudMood(p) {                     // late AI verdict carries sentiment + bot flag
+    const e = p && p.id ? hudById.get(p.id) : null;
+    if (!e) return;
+    if (p.sentiment) e.mood = moodOf(p.sentiment);
+    if (p.standout && e.mood === 0) e.mood = 1;
+  }
+  const gMpm = document.getElementById("gMpm"), gMood = document.getElementById("gMood"),
+        gNeedle = document.getElementById("gNeedle"), gSplit = document.getElementById("gSplit"),
+        spTw = document.getElementById("spTw"), spX = document.getElementById("spX"), spKi = document.getElementById("spKi"),
+        gRaid = document.getElementById("gRaid"), gRaidV = document.getElementById("gRaidV");
+  function hudTick() {
+    const now = Date.now();
+    while (hudLog.length && now - hudLog[0].ts > 60000) {
+      const g = hudLog.shift();
+      // entries fall out of the id map lazily; fine for our short window
+    }
+    const win = hudLog;
+    gMpm.textContent = win.length;          // last 60s == per-minute rate
+    // sentiment needle
+    let bull = 0, bear = 0;
+    for (const e of win) { if (e.mood > 0) bull++; else if (e.mood < 0) bear++; }
+    const tot = bull + bear;
+    const pct = tot ? bull / tot : 0.5;     // 0 = all bear, 1 = all bull
+    gNeedle.style.left = (6 + pct * 88) + "%";
+    gMood.textContent = !tot ? "—" : pct > 0.6 ? "Bullish 🚀" : pct < 0.4 ? "Bearish 📉" : "Mixed 🤔";
+    gMood.style.color = !tot ? "var(--dim)" : pct > 0.6 ? "var(--kick)" : pct < 0.4 ? "var(--toxic)" : "var(--txt)";
+    // source split
+    let tw = 0, x = 0, ki = 0;
+    for (const e of win) { if (e.source === "twitch") tw++; else if (e.source === "x") x++; else if (e.source === "kick") ki++; }
+    const st = tw + x + ki || 1;
+    const ptw = Math.round(tw / st * 100), px = Math.round(x / st * 100), pki = 100 - ptw - px;
+    spTw.style.width = ptw + "%"; spX.style.width = px + "%"; spKi.style.width = Math.max(0, pki) + "%";
+    gSplit.textContent = win.length ? `${ptw}🎮 · ${px}𝕏 · ${Math.max(0, pki)}⚡` : "— · — · —";
+    // raid / bot pressure (last 30s)
+    let bots = 0; for (const e of win) if (e.bot && now - e.ts < 30000) bots++;
+    const hot = bots >= 3;
+    gRaid.classList.toggle("on", hot);
+    gRaidV.textContent = hot ? `⚠ ${bots} bot${bots > 1 ? "s" : ""}/30s` : bots ? `${bots} flagged` : "clear";
+  }
+  setInterval(hudTick, 1000);
 
   // End-of-stream Host Recap modal
   const recapBg = document.getElementById("recapBg");
@@ -634,9 +776,10 @@
     ws.onerror = () => { try { ws.close(); } catch (e) {} };
     ws.onmessage = (ev) => {
       let p; try { p = JSON.parse(ev.data); } catch (e) { return; }
-      if (p.type === "message") addMessage(p.data);
-      else if (p.type === "patch") patchMessage(p.data);
+      if (p.type === "message") { addMessage(p.data); hudPush(p.data); }
+      else if (p.type === "patch") { patchMessage(p.data); hudMood(p.data); }
       else if (p.type === "stats") renderStats(p.data.top);
+      else if (p.type === "markets") renderMarkets(p.data);
       else if (p.type === "summary") summaryEl.textContent = p.data.text || "—";
       else if (p.type === "hello") {
         setAI(p.data.ai, p.data.mode);

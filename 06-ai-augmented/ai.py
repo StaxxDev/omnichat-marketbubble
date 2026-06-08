@@ -396,18 +396,21 @@ def _facts_block(recent: List[dict]) -> str:
     return "\n".join(parts)
 
 
-async def ask_agent(question: str, memory_context: str, recent: List[dict]) -> str:
+async def ask_agent(question: str, memory_context: str, recent: List[dict],
+                    markets_context: str = "") -> str:
     """
-    The hosts' co-pilot Q&A. Answers using accumulated MEMORY across shows plus the
-    current chat. e.g. 'who are my best contributors?', 'what does chat keep asking about?'.
+    The hosts' co-pilot Q&A. Answers using accumulated MEMORY across shows, the
+    current chat, AND live prediction-market odds. e.g. 'who are my best contributors?',
+    'what does chat keep asking about?', 'what is chat betting on?'.
     """
     q = (question or "").strip()
     if not q:
-        return "Ask me about chat themes, your top contributors, recurring questions, or repeat bots."
+        return "Ask me about chat themes, top contributors, recurring questions, or what chat's betting on."
     if _claude_use() and _client:
         try:
             timeline = _timeline_lines(recent)
             facts = _facts_block(recent)
+            mkt = f"\n\n=== LIVE PREDICTION-MARKET ODDS (Polymarket, right now) ===\n{markets_context}" if markets_context else ""
             resp = await _client.messages.create(
                 model=MODEL,
                 max_tokens=380,
@@ -424,10 +427,12 @@ async def ask_agent(question: str, memory_context: str, recent: List[dict]) -> s
                     "- You see CHAT, not the hosts' audio. If asked what the host SAID/covered, answer from "
                     "what chat reacted to in that window and say so in one short clause — then give a useful "
                     "read. NEVER end by asking the host to tell you what they covered; you do the work.\n"
-                    "- 2-5 sentences, practical, no preamble. Ground every claim in the facts/log/memory below; "
+                    "- If chat is discussing an event/asset that appears in the prediction-market odds "
+                    "below, CITE the live line (e.g. 'the market has it at 63% Yes') — that's Market Bubble's edge.\n"
+                    "- 2-5 sentences, practical, no preamble. Ground every claim in the facts/log/memory/odds below; "
                     "if something truly isn't there, say so in half a sentence and move on.\n\n"
                     f"=== MEMORY (prior shows) ===\n{memory_context or '(no prior shows yet)'}\n\n"
-                    f"=== SESSION FACTS (pre-computed, trust these counts) ===\n{facts}\n\n"
+                    f"=== SESSION FACTS (pre-computed, trust these counts) ===\n{facts}{mkt}\n\n"
                     f"=== CURRENT CHAT (time-stamped, newest last) ===\n{timeline or '(quiet)'}"
                 ),
                 messages=[{"role": "user", "content": q}],
@@ -437,6 +442,7 @@ async def ask_agent(question: str, memory_context: str, recent: List[dict]) -> s
                 return text.strip()
         except Exception as e:
             _trip_breaker(e)
-    # heuristic fallback: surface the pre-computed facts + raw memory (still useful offline)
-    return ("Co-pilot (offline mode).\n" + _facts_block(recent) + "\n\nFrom memory:\n"
+    # heuristic fallback: surface the pre-computed facts + live odds + raw memory (still useful offline)
+    odds = ("\n\n" + markets_context) if markets_context else ""
+    return ("Co-pilot (offline mode).\n" + _facts_block(recent) + odds + "\n\nFrom memory:\n"
             + (memory_context or "no memory yet.") + "\n(Connect an Anthropic key for full Q&A.)")

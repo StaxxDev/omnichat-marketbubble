@@ -41,6 +41,7 @@ except Exception:
     pass
 
 import ai
+import markets
 import memory
 import x_dm
 from datetime import datetime, timezone
@@ -49,11 +50,13 @@ from connectors import build_connector_tasks
 MAX_RETAINED = 500           # cap retained messages to bound memory
 SUMMARY_INTERVAL = 15        # seconds between rolling-summary refreshes
 STATS_INTERVAL = 6           # seconds between contributor-leaderboard pushes
+MARKETS_INTERVAL = 35        # seconds between prediction-market odds refreshes
 
 # Shared state
 _clients: Set[WebSocket] = set()
 _history: Deque[dict] = deque(maxlen=MAX_RETAINED)
 _summary: dict = {"text": "", "ai": ai.ai_enabled()}
+_markets_snap: dict = {"matched": [], "trending": []}   # latest Polymarket odds chat is betting on
 _loop_tasks: list = []
 
 # Per-user "meaningful contribution" stats. score = standouts*3 + messages.
@@ -189,6 +192,47 @@ async def _stats_loop() -> None:
             print(f"[stats] loop error ({e!r})")
 
 
+import re as _re
+
+_CASHTAG = _re.compile(r"\$[A-Za-z]{2,10}\b")
+_CAPWORD = _re.compile(r"\b[A-Z][a-zA-Z]{3,}\b")
+_KW_STOP = {"This", "That", "Chat", "What", "When", "Will", "They", "Just", "Like",
+            "Twitch", "Kick", "From", "With", "Your", "Their", "Market", "Bubble"}
+
+
+def _chat_keywords(limit: int = 4) -> list:
+    """What is chat talking about? Top cashtags + recurring proper nouns + summary terms —
+    used to pull the matching prediction markets. Cashtags rank first (trading show)."""
+    cash, caps = {}, {}
+    for m in list(_history)[-140:]:
+        txt = m.get("text", "") or ""
+        for t in _CASHTAG.findall(txt):
+            cash[t.upper()] = cash.get(t.upper(), 0) + 1
+        for w in _CAPWORD.findall(txt):
+            if w not in _KW_STOP:
+                caps[w] = caps.get(w, 0) + 1
+    for w in _CAPWORD.findall(_summary.get("text", "") or ""):
+        if w not in _KW_STOP:
+            caps[w] = caps.get(w, 0) + 2
+    ranked = [k for k, _ in sorted(cash.items(), key=lambda kv: kv[1], reverse=True)]
+    ranked += [k for k, _ in sorted(caps.items(), key=lambda kv: kv[1], reverse=True)]
+    return ranked[:limit]
+
+
+async def _markets_loop() -> None:
+    """Pull LIVE prediction-market odds that match what chat is betting on (~every 35s)."""
+    global _markets_snap
+    while True:
+        try:
+            snap = await markets.relevant(_chat_keywords())
+            if snap.get("matched") or snap.get("trending"):
+                _markets_snap = snap
+                await _broadcast({"type": "markets", "data": _markets_snap})
+        except Exception as e:
+            print(f"[markets] loop error ({e!r})")
+        await asyncio.sleep(MARKETS_INTERVAL)
+
+
 async def _summary_loop() -> None:
     """Refresh the rolling 'what is chat talking about' banner every ~15s."""
     if not ai.ai_enabled():
@@ -211,6 +255,7 @@ async def lifespan(app: FastAPI):
     _loop_tasks.extend(build_connector_tasks(_enrich_and_emit))
     _loop_tasks.append(asyncio.create_task(_summary_loop()))
     _loop_tasks.append(asyncio.create_task(_stats_loop()))
+    _loop_tasks.append(asyncio.create_task(_markets_loop()))
     print(f"[omnichat] started — AI {'ON' if ai.ai_enabled() else 'OFF (plain mode)'}")
     try:
         yield
@@ -254,9 +299,16 @@ async def memory_view():
 
 @app.get("/agent")
 async def agent(q: str = ""):
-    """Ask the hosts' co-pilot a question, answered from cross-show memory + live chat."""
-    answer = await ai.ask_agent(q, memory.recall_context(), list(_history))
+    """Ask the hosts' co-pilot a question, answered from cross-show memory + live chat + live odds."""
+    answer = await ai.ask_agent(q, memory.recall_context(), list(_history),
+                                markets.as_context(_markets_snap))
     return JSONResponse({"q": q, "answer": answer, "mode": ai.ai_mode()})
+
+
+@app.get("/markets")
+async def markets_view():
+    """Live prediction-market odds matched to what chat is betting on right now."""
+    return JSONResponse(_markets_snap)
 
 
 def _chrome_path() -> Optional[str]:
@@ -457,6 +509,8 @@ async def ws_endpoint(ws: WebSocket):
         for m in list(_history):
             await ws.send_text(json.dumps({"type": "message", "data": m}))
         await ws.send_text(json.dumps({"type": "stats", "data": {"top": _top_contributors()}}))
+        if _markets_snap.get("matched") or _markets_snap.get("trending"):
+            await ws.send_text(json.dumps({"type": "markets", "data": _markets_snap}))
         while True:
             # We don't need client messages; keep the socket alive.
             await ws.receive_text()
