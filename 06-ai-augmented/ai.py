@@ -13,8 +13,8 @@ isn't installed), AI is disabled and the app runs as a plain aggregator.
   2) summarize_chat(recent) -> a one-line "what is chat talking about" banner,
      refreshed on a timer by the server (~every 15s).
 
-Model: claude-haiku-4-5-20251001 (fast + cheap, ideal for per-message calls).
-Uses the current Anthropic Messages API via the official async SDK.
+Model: claude-fable-5 (Claude Fable 5) — the co-pilot's brain. Override with the
+CLAUDE_MODEL env var. Uses the current Anthropic Messages API via the async SDK.
 """
 
 from __future__ import annotations
@@ -23,7 +23,12 @@ import json
 import os
 from typing import List, Optional
 
-MODEL = "claude-haiku-4-5-20251001"
+# Primary model for the whole co-pilot. Env-overridable so it's a one-liner to swap.
+MODEL = os.environ.get("CLAUDE_MODEL", "") or "claude-fable-5"
+# The per-message classifier fires on EVERY chat line (high volume). It defaults to the
+# primary model, but set CLASSIFY_MODEL=claude-haiku-4-5-20251001 to keep that cheap while
+# Fable powers the recap / summary / Q&A.
+CLASSIFY_MODEL = os.environ.get("CLASSIFY_MODEL", "") or MODEL
 
 # --- Graceful import + key detection ------------------------------------- #
 # Design: Claude is the PRIMARY brain. If there's no key, the SDK is missing, or
@@ -52,7 +57,7 @@ except Exception as e:  # SDK missing or init failed -> heuristic only
     _claude_ok = False
 
 if _claude_ok:
-    print("[ai] Claude layer ready (claude-haiku-4-5) — heuristic fallback armed")
+    print(f"[ai] Claude layer ready ({MODEL}) — heuristic fallback armed")
 else:
     print("[ai] No Claude key — running on the local heuristic AI layer")
 
@@ -207,7 +212,7 @@ async def classify_message(text: str) -> Optional[dict]:
     if _claude_use() and _client:
         try:
             resp = await _client.messages.create(
-                model=MODEL,
+                model=CLASSIFY_MODEL,
                 max_tokens=60,
                 system=(
                     "You moderate live-stream chat for a crypto trading show (Market Bubble). "
