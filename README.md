@@ -16,7 +16,9 @@ Above: the AI build pulling **real live Twitch chat** (xqc + jynxzi) with **Clau
 |---|---|---|
 | ![hero](preview-hero.png) | ![overlay](preview-overlay.png) | ![hub](preview-hub.png) |
 
-The hero runs with **real Claude** (claude-haiku-4-5) for live spam/sentiment + a "what chat is saying" summary, with **$ticker** + **host/⭐VIP** highlighting and the Market Bubble look — near-black with the signature lime (#e8ff9c) accent, Host Grotesk + DM Sans. It degrades to a local heuristic if the API is unavailable, so the feed never goes dark on stream.
+The hero runs on **Claude** (`claude-fable-5`, env-overridable) for live spam/sentiment + a "what chat is saying" summary, with **$ticker** + **host/⭐VIP** highlighting and the Market Bubble look — near-black with the signature lime (#e8ff9c) accent, Host Grotesk + DM Sans. It degrades to a local heuristic if the API is unavailable, so the feed never goes dark on stream.
+
+**🖥️ Native producer dashboard:** the **live stream plays beside the merged chat** (Twitch / Kick / YouTube embeds) — watch the show and read every platform's chat in one view. **Hover any chatter** to see *where they're coming from* (per-platform message breakdown, 💎 standouts, VIP/bot, first-seen). A **compose box posts into the shared feed**, and an in-app **⚙️ Settings panel** re-points the aggregator at *your own* channels **live — no env edit, no redeploy** (verified hot-switching to a real channel pulls its actual chat).
 
 **📊 Prediction-market layer (the Market Bubble edge):** Market Bubble is *"the new home for prediction market discourse"* — so the co-pilot doesn't just read chat, it reads what chat is **betting on**. It extracts the assets/events chat is discussing and pulls **live Polymarket odds** for them (public Gamma API, no key), surfacing them in a **📊 "what chat's betting on"** ticker and letting the host say *"chat's split on $ETH — the line says 99% No"* on camera. The co-pilot's Q&A and recap are odds-aware too. No other entry will tie chat to live markets.
 
