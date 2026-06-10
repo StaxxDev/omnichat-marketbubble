@@ -311,6 +311,24 @@ async def markets_view():
     return JSONResponse(_markets_snap)
 
 
+@app.get("/config")
+async def config_view():
+    """Stream channels being aggregated — lets the dashboard play the SAME streams it reads chat from."""
+    def lst(*keys):
+        for k in keys:
+            v = os.environ.get(k, "") or ""
+            items = [c.strip() for c in v.split(",") if c.strip()]
+            if items:
+                return items
+        return []
+    return JSONResponse({
+        "twitch": lst("TWITCH_CHANNELS"),
+        "kick": lst("KICK_CHANNELS"),
+        "youtube": lst("YOUTUBE_CHANNELS", "YT_CHANNELS", "YOUTUBE_VIDEOS"),
+        "x_target": os.environ.get("X_TARGET", "") or "",
+    })
+
+
 def _chrome_path() -> Optional[str]:
     cands = [
         os.environ.get("CHROME_PATH"),

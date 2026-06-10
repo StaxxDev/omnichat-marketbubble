@@ -202,8 +202,43 @@
   .mkt .vol { font-size: 10px; color: var(--dim); flex: none; }
   .markets .empty { color: var(--dim); font-size: 12px; }
 
+  /* ── Native dashboard: stream pane beside the chat column ────────── */
+  .stage { flex: 1; display: flex; min-height: 0; }
+  .streampane { flex: 1 1 58%; min-width: 0; display: flex; flex-direction: column;
+    background: #000; border-right: 1px solid var(--line); }
+  .streampane.hidden { display: none; }
+  .chatcol { flex: 1 1 42%; min-width: 320px; display: flex; flex-direction: column; min-height: 0; }
+  body.nostream .chatcol { flex: 1 1 100%; }
+  .streamhead { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .sttabs { display: flex; gap: 6px; }
+  .sttab { border: 1px solid var(--line); background: #1b1b1b; color: var(--txt); cursor: pointer;
+    font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+  .sttab.active { background: var(--gold); border-color: var(--gold); color: #0a0a0a; }
+  .stchans { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
+  .stchan { border: 1px solid var(--line); background: #141414; color: var(--dim); cursor: pointer;
+    font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
+  .stchan.active { color: var(--txt); border-color: var(--gold); box-shadow: inset 0 0 0 1px rgba(232,255,156,.3); }
+  .stchaninput { background: #141414; border: 1px solid var(--line); color: var(--txt); border-radius: 999px;
+    padding: 5px 11px; font-size: 12px; width: 130px; }
+  .stcollapse { margin-left: auto; border: 1px solid var(--line); background: #1b1b1b; color: var(--dim);
+    cursor: pointer; font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 8px; white-space: nowrap; }
+  .stframe { flex: 1; position: relative; background: #000; min-height: 0; }
+  .stframe iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .stframe .ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 8px; color: var(--dim); text-align: center; padding: 20px; }
+  .stframe .ph b { color: var(--txt); font-family: var(--disp); }
+  /* a button in the header to bring the stream back when collapsed */
+  .showstream { display: none; border: 1px solid var(--gold); background: transparent; color: var(--gold);
+    cursor: pointer; font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+  body.nostream .showstream { display: inline-block; }
+
   /* ── Mobile / narrow screens: keep button text on one line, tighten chrome ── */
   @media (max-width: 560px) {
+    .stage { flex-direction: column; }              /* stack: video on top, chat below */
+    .streampane { flex: 0 0 auto; border-right: none; border-bottom: 1px solid var(--line); }
+    .stframe { height: 38vh; flex: none; }
+    .chatcol { flex: 1 1 auto; }
     header { padding: 9px 10px; gap: 7px; }
     .logo { font-size: 14px; gap: 7px; }
     .logo .mark { width: 19px; height: 19px; }
@@ -235,6 +270,7 @@
         <div class="toggle" data-src="x"><span class="b"></span>𝕏 X</div>
         <div class="toggle" data-src="kick"><span class="b"></span>⚡ Kick</div>
         <div class="toggle botfilter" id="botToggle" title="Hide likely bots / raids and AI-flagged spam">🧹 Hide bots &amp; spam</div>
+        <button class="showstream" id="showStream">▶ Watch stream</button>
         <button class="recap-btn" id="recapBtn">📋 End-of-Stream Recap</button>
       </div>
     </div>
@@ -257,11 +293,28 @@
     </div>
   </header>
 
-  <div id="feed"></div>
-  <div class="paused" id="pauseBar">▼ Paused (scrolled up) — click to resume auto-scroll</div>
-  <div class="markets" id="markets">
-    <span class="lead">📊 CHAT'S BETTING ON<small>live Polymarket odds</small></span>
-    <span class="empty" id="marketsList">reading the board…</span>
+  <div class="stage">
+    <div class="streampane" id="streamPane">
+      <div class="streamhead">
+        <div class="sttabs">
+          <button class="sttab active" data-pf="twitch">🎮 Twitch</button>
+          <button class="sttab" data-pf="kick">⚡ Kick</button>
+          <button class="sttab" data-pf="youtube">▶ YouTube</button>
+        </div>
+        <div class="stchans" id="stChans"></div>
+        <input class="stchaninput" id="stChanInput" placeholder="channel / video id…" />
+        <button class="stcollapse" id="stCollapse" title="Hide the stream (chat only)">⮌ Hide</button>
+      </div>
+      <div class="stframe" id="stFrame"></div>
+    </div>
+    <div class="chatcol">
+      <div id="feed"></div>
+      <div class="paused" id="pauseBar">▼ Paused (scrolled up) — click to resume auto-scroll</div>
+      <div class="markets" id="markets">
+        <span class="lead">📊 CHAT'S BETTING ON<small>live Polymarket odds</small></span>
+        <span class="empty" id="marketsList">reading the board…</span>
+      </div>
+    </div>
   </div>
 
   <div class="modal-bg" id="recapBg">
@@ -790,6 +843,89 @@
       : mode === "claude" ? "AI: ON 🤖 Claude"
       : "AI: ON ⚙️ heuristic";
   }
+
+  // ── Native dashboard: live stream player beside the merged chat ───────
+  const streamPane = document.getElementById("streamPane");
+  const stFrame = document.getElementById("stFrame");
+  const stChans = document.getElementById("stChans");
+  const stChanInput = document.getElementById("stChanInput");
+  const STREAM = { platform: (params.get("pf") || "twitch").toLowerCase(),
+    channels: { twitch: [], kick: [], youtube: [] }, current: { twitch: "", kick: "", youtube: "" } };
+  function paramList(n) { const v = params.get(n); return v ? v.split(",").map((s) => s.trim()).filter(Boolean) : []; }
+  STREAM.channels.twitch = paramList("twitch");
+  STREAM.channels.kick = paramList("kick");
+  STREAM.channels.youtube = paramList("yt").concat(paramList("youtube"));
+
+  function buildEmbed(pf, ch) {
+    if (!ch) return null;
+    if (pf === "twitch") {
+      const p = "parent=" + encodeURIComponent(location.hostname || "localhost");
+      return `https://player.twitch.tv/?channel=${encodeURIComponent(ch)}&${p}&muted=true&autoplay=true`;
+    }
+    if (pf === "kick") return `https://player.kick.com/${encodeURIComponent(ch)}?muted=true&autoplay=true`;
+    if (pf === "youtube") {
+      if (/^UC[\w-]{20,}$/.test(ch)) return `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(ch)}&autoplay=1&mute=1`;
+      return `https://www.youtube.com/embed/${encodeURIComponent(ch)}?autoplay=1&mute=1`;
+    }
+    return null;
+  }
+  function renderStream() {
+    const pf = STREAM.platform;
+    document.querySelectorAll(".sttab").forEach((t) => t.classList.toggle("active", t.dataset.pf === pf));
+    const chans = STREAM.channels[pf] || [];
+    stChans.innerHTML = "";
+    chans.forEach((ch) => {
+      const b = document.createElement("button");
+      b.className = "stchan" + (ch === STREAM.current[pf] ? " active" : "");
+      b.textContent = ch;
+      b.addEventListener("click", () => { STREAM.current[pf] = ch; renderStream(); });
+      stChans.appendChild(b);
+    });
+    stChanInput.value = STREAM.current[pf] || "";
+    stChanInput.placeholder = pf === "youtube" ? "video id / UC… channel" : "channel name";
+    const src = buildEmbed(pf, STREAM.current[pf]);
+    if (src) {
+      stFrame.innerHTML = `<iframe src="${src}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen scrolling="no"></iframe>`;
+    } else {
+      stFrame.innerHTML = `<div class="ph"><b>Watch the stream here</b><span>Pick a ${pf} channel above — the merged Twitch · X · Kick chat keeps running alongside.</span></div>`;
+    }
+  }
+  document.querySelectorAll(".sttab").forEach((t) => t.addEventListener("click", () => {
+    STREAM.platform = t.dataset.pf;
+    if (!STREAM.current[STREAM.platform]) STREAM.current[STREAM.platform] = (STREAM.channels[STREAM.platform] || [])[0] || "";
+    renderStream();
+  }));
+  stChanInput.addEventListener("change", () => {
+    const v = stChanInput.value.trim();
+    STREAM.current[STREAM.platform] = v;
+    if (v && !STREAM.channels[STREAM.platform].includes(v)) STREAM.channels[STREAM.platform].push(v);
+    renderStream();
+  });
+  stChanInput.addEventListener("keydown", (e) => { if (e.key === "Enter") stChanInput.blur(); });
+  const showStreamBtn = document.getElementById("showStream");
+  document.getElementById("stCollapse").addEventListener("click", () => {
+    document.body.classList.add("nostream"); streamPane.classList.add("hidden");
+  });
+  showStreamBtn.addEventListener("click", () => {
+    document.body.classList.remove("nostream"); streamPane.classList.remove("hidden");
+  });
+  // Seed channels from the server config (same streams we aggregate chat from), then render.
+  (async () => {
+    try {
+      const c = await (await fetch("/config")).json();
+      ["twitch", "kick", "youtube"].forEach((pf) => (c[pf] || []).forEach((ch) => {
+        if (!STREAM.channels[pf].includes(ch)) STREAM.channels[pf].push(ch);
+      }));
+    } catch (e) {}
+    for (const pf of ["twitch", "kick", "youtube"]) {
+      if ((STREAM.channels[pf] || []).length) {
+        if (!params.get("pf")) STREAM.platform = pf;
+        STREAM.current[pf] = STREAM.current[pf] || STREAM.channels[pf][0];
+        break;
+      }
+    }
+    renderStream();
+  })();
 
   let ws, backoff = 500;
   function connect() {
