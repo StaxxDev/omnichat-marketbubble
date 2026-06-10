@@ -248,6 +248,23 @@
   .compose .csend:hover { transform: translateY(-1px); }
   .compose .csend:disabled { opacity: .5; cursor: default; transform: none; }
 
+  /* ── Settings modal ──────────────────────────────────────────────── */
+  .modal.settings { max-width: 460px; }
+  .setlbl { display: block; margin: 14px 0 5px; font-family: var(--disp); font-weight: 700; font-size: 13px; }
+  .setlbl span { color: var(--dim); font-weight: 500; font-size: 11px; margin-left: 4px; }
+  .setinput { width: 100%; background: #141414; border: 1px solid var(--line); color: var(--txt);
+    border-radius: 9px; padding: 9px 12px; font: inherit; font-size: 14px; outline: none; transition: border-color .12s; }
+  .setinput:focus { border-color: var(--gold); }
+  .settoggle { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .settoggle span { color: var(--dim); font-weight: 500; font-size: 11px; }
+  .settoggle input { width: 16px; height: 16px; accent-color: var(--gold); }
+  .setrow { display: flex; align-items: center; gap: 12px; margin-top: 20px; }
+  .setsave { border: 1px solid var(--gold); background: var(--gold); color: #0a0a0a; font-family: var(--disp);
+    font-weight: 800; font-size: 14px; padding: 9px 22px; border-radius: 9px; cursor: pointer; transition: transform .1s; }
+  .setsave:hover { transform: translateY(-1px); } .setsave:disabled { opacity: .5; transform: none; cursor: default; }
+  .setmsg { font-size: 12px; color: var(--dim); }
+  .setmsg.ok { color: var(--kick); }
+
   /* ── Hover "where they're coming from" viewer card ───────────────── */
   #viewerCard { position: fixed; z-index: 60; width: 252px; background: #0e0e0e; border: 1px solid var(--gold);
     border-radius: 11px; padding: 11px 13px; box-shadow: 0 12px 36px rgba(0,0,0,.62); pointer-events: none;
@@ -314,6 +331,7 @@
         <div class="toggle" data-src="kick"><span class="b"></span>⚡ Kick</div>
         <div class="toggle botfilter" id="botToggle" title="Hide likely bots / raids and AI-flagged spam">🧹 Hide bots &amp; spam</div>
         <button class="showstream" id="showStream">▶ Watch stream</button>
+        <button class="recap-btn" id="settingsBtn" title="Point the dashboard at your own channels">⚙️ Settings</button>
         <button class="recap-btn" id="recapBtn">📋 End-of-Stream Recap</button>
       </div>
     </div>
@@ -371,6 +389,25 @@
       <h2>📋 End-of-Stream Recap</h2>
       <div class="sub" id="recapSub">for the host</div>
       <div id="recapBody">Generating…</div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="settingsBg">
+    <div class="modal settings">
+      <button class="close" id="settingsClose">×</button>
+      <h2>⚙️ Dashboard Settings</h2>
+      <div class="sub">Point the aggregator at your own show — applies live, no restart.</div>
+      <label class="setlbl">🎮 Twitch channels <span>comma-separated logins</span></label>
+      <input id="setTwitch" class="setinput" placeholder="fazebanks, ansem" />
+      <label class="setlbl">⚡ Kick channels <span>comma-separated slugs</span></label>
+      <input id="setKick" class="setinput" placeholder="trainwreckstv" />
+      <label class="setlbl">𝕏 X target <span>handle or #hashtag to track</span></label>
+      <input id="setX" class="setinput" placeholder="marketbubble" />
+      <label class="settoggle"><input type="checkbox" id="setDemo" /> Demo mode <span>synthetic chat (for testing offline)</span></label>
+      <div class="setrow">
+        <button id="setSave" class="setsave">Apply</button>
+        <span id="setMsg" class="setmsg"></span>
+      </div>
     </div>
   </div>
 
@@ -1053,6 +1090,48 @@
   }
   cSend.addEventListener("click", sendShared);
   cText.addEventListener("keydown", (e) => { if (e.key === "Enter") sendShared(); });
+
+  // ── Settings: re-point the aggregator at your own channels (live, no redeploy) ──
+  const settingsBg = document.getElementById("settingsBg");
+  const setTwitch = document.getElementById("setTwitch"), setKick = document.getElementById("setKick"),
+        setX = document.getElementById("setX"), setDemo = document.getElementById("setDemo"),
+        setSave = document.getElementById("setSave"), setMsg = document.getElementById("setMsg");
+  async function openSettings() {
+    settingsBg.classList.add("show");
+    setMsg.textContent = ""; setMsg.className = "setmsg";
+    try {
+      const s = await (await fetch("/settings")).json();
+      setTwitch.value = (s.twitch || []).join(", ");
+      setKick.value = (s.kick || []).join(", ");
+      setX.value = s.x_target || "";
+      setDemo.checked = !!s.demo;
+    } catch (e) {}
+  }
+  async function saveSettings() {
+    setSave.disabled = true; setMsg.className = "setmsg"; setMsg.textContent = "Applying…";
+    const splitcsv = (v) => v.split(",").map((s) => s.trim()).filter(Boolean);
+    try {
+      const r = await fetch("/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ twitch: splitcsv(setTwitch.value), kick: splitcsv(setKick.value),
+          x_target: setX.value.trim(), demo: setDemo.checked }) });
+      const j = await r.json();
+      if (j.ok) {
+        STREAM.channels.twitch = j.twitch || [];
+        STREAM.channels.kick = j.kick || [];
+        if ((j.twitch || []).length) { STREAM.platform = "twitch"; STREAM.current.twitch = j.twitch[0]; }
+        else if ((j.kick || []).length) { STREAM.platform = "kick"; STREAM.current.kick = j.kick[0]; }
+        renderStream();
+        setMsg.className = "setmsg ok";
+        setMsg.textContent = j.demo ? "✓ Applied — demo mode on." : "✓ Applied — now aggregating your channels live.";
+        setTimeout(() => settingsBg.classList.remove("show"), 1100);
+      } else { setMsg.textContent = "Error: " + (j.error || "failed"); }
+    } catch (e) { setMsg.textContent = "Failed to apply."; }
+    setSave.disabled = false;
+  }
+  document.getElementById("settingsBtn").addEventListener("click", openSettings);
+  document.getElementById("settingsClose").addEventListener("click", () => settingsBg.classList.remove("show"));
+  settingsBg.addEventListener("click", (e) => { if (e.target === settingsBg) settingsBg.classList.remove("show"); });
+  setSave.addEventListener("click", saveSettings);
 
   let ws, backoff = 500;
   function connect() {

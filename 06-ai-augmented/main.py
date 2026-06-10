@@ -59,6 +59,7 @@ _history: Deque[dict] = deque(maxlen=MAX_RETAINED)
 _summary: dict = {"text": "", "ai": ai.ai_enabled()}
 _markets_snap: dict = {"matched": [], "trending": []}   # latest Polymarket odds chat is betting on
 _loop_tasks: list = []
+_connector_tasks: list = []   # source connectors, restartable live from the Settings panel
 
 # Per-user "meaningful contribution" stats. score = standouts*3 + messages.
 # Standouts (AI-judged high-signal posts) are weighted heavily so quality > spammy volume.
@@ -253,7 +254,8 @@ async def _summary_loop() -> None:
 async def lifespan(app: FastAPI):
     # Start connectors + summary loop on startup
     memory.init()
-    _loop_tasks.extend(build_connector_tasks(_enrich_and_emit))
+    global _connector_tasks
+    _connector_tasks = build_connector_tasks(_enrich_and_emit)
     _loop_tasks.append(asyncio.create_task(_summary_loop()))
     _loop_tasks.append(asyncio.create_task(_stats_loop()))
     _loop_tasks.append(asyncio.create_task(_markets_loop()))
@@ -261,8 +263,17 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        for t in _loop_tasks:
+        for t in _loop_tasks + _connector_tasks:
             t.cancel()
+
+
+def _restart_connectors() -> None:
+    """Cancel the running source connectors and start fresh from the current env config.
+    Lets the Settings panel re-point the aggregator at new channels with no redeploy."""
+    global _connector_tasks
+    for t in _connector_tasks:
+        t.cancel()
+    _connector_tasks = build_connector_tasks(_enrich_and_emit)
 
 
 app = FastAPI(title="OmniChat AI", lifespan=lifespan)
@@ -327,6 +338,56 @@ async def config_view():
         "kick": lst("KICK_CHANNELS"),
         "youtube": lst("YOUTUBE_CHANNELS", "YT_CHANNELS", "YOUTUBE_VIDEOS"),
         "x_target": os.environ.get("X_TARGET", "") or "",
+    })
+
+
+def _env_list(key: str) -> list:
+    return [c.strip() for c in (os.environ.get(key, "") or "").split(",") if c.strip()]
+
+
+@app.get("/settings")
+async def settings_get():
+    """Current aggregator config — lets the in-app Settings panel show what we're reading."""
+    return JSONResponse({
+        "twitch": _env_list("TWITCH_CHANNELS"),
+        "kick": _env_list("KICK_CHANNELS"),
+        "x_target": os.environ.get("X_TARGET", "") or "",
+        "x_mode": os.environ.get("X_MODE", "") or "mentions",
+        "demo": os.environ.get("DEMO", "") in ("1", "true", "True"),
+        "ai_mode": ai.ai_mode(),
+    })
+
+
+@app.post("/settings")
+async def settings_post(req: Request):
+    """Re-point the aggregator at new channels live — no env edit, no redeploy.
+    Updates the runtime config and restarts the source connectors."""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+
+    def chanjoin(v):
+        items = v if isinstance(v, list) else str(v or "").split(",")
+        return ",".join(str(x).strip().lower().lstrip("#@") for x in items if str(x).strip())
+
+    if "twitch" in body:
+        os.environ["TWITCH_CHANNELS"] = chanjoin(body.get("twitch"))
+    if "kick" in body:
+        os.environ["KICK_CHANNELS"] = chanjoin(body.get("kick"))
+    if "x_target" in body:
+        os.environ["X_TARGET"] = str(body.get("x_target") or "").strip().lstrip("#@")
+    if body.get("x_mode"):
+        os.environ["X_MODE"] = str(body.get("x_mode"))
+    if "demo" in body:
+        os.environ["DEMO"] = "1" if body.get("demo") else ""
+    _restart_connectors()
+    return JSONResponse({
+        "ok": True,
+        "twitch": _env_list("TWITCH_CHANNELS"),
+        "kick": _env_list("KICK_CHANNELS"),
+        "x_target": os.environ.get("X_TARGET", "") or "",
+        "demo": os.environ.get("DEMO", "") in ("1", "true", "True"),
     })
 
 
