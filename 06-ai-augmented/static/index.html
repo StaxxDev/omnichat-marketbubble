@@ -233,6 +233,49 @@
     cursor: pointer; font-size: 12px; font-weight: 700; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
   body.nostream .showstream { display: inline-block; }
 
+  /* ── Shared-chat source + post compose ───────────────────────────── */
+  .badge.shared { background: var(--gold); color: #0a0a0a; }
+  .author { cursor: help; transition: color .12s; }
+  .author:hover { text-decoration: underline dotted; text-underline-offset: 2px; }
+  .compose { display: flex; gap: 7px; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--panel); }
+  .compose input { background: #141414; border: 1px solid var(--line); color: var(--txt); border-radius: 8px;
+    padding: 8px 11px; font: inherit; font-size: 13px; outline: none; transition: border-color .12s; }
+  .compose input:focus { border-color: var(--gold); }
+  .compose .cname { width: 92px; flex: none; }
+  .compose .ctext { flex: 1; min-width: 0; }
+  .compose .csend { border: 1px solid var(--gold); background: var(--gold); color: #0a0a0a; font-weight: 800;
+    font-family: var(--disp); border-radius: 8px; padding: 8px 14px; cursor: pointer; white-space: nowrap; transition: transform .1s; }
+  .compose .csend:hover { transform: translateY(-1px); }
+  .compose .csend:disabled { opacity: .5; cursor: default; transform: none; }
+
+  /* ── Hover "where they're coming from" viewer card ───────────────── */
+  #viewerCard { position: fixed; z-index: 60; width: 252px; background: #0e0e0e; border: 1px solid var(--gold);
+    border-radius: 11px; padding: 11px 13px; box-shadow: 0 12px 36px rgba(0,0,0,.62); pointer-events: none;
+    font-size: 12px; animation: vcin .12s ease-out; }
+  @keyframes vcin { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  #viewerCard .vc-name { font-family: var(--disp); font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  #viewerCard .vc-tag { font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 999px; }
+  #viewerCard .vc-tag.vip { background: var(--gold); color: #0a0a0a; } #viewerCard .vc-tag.bot { background: #555; color: #fff; }
+  #viewerCard .vc-lab { color: var(--dim); font-size: 9px; text-transform: uppercase; letter-spacing: .5px; margin: 9px 0 5px; }
+  #viewerCard .vc-srcs { display: flex; flex-wrap: wrap; gap: 5px; }
+  #viewerCard .vc-src { font-weight: 700; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #1b1b1b; border: 1px solid var(--line); }
+  #viewerCard .vc-src.twitch { color: #b39bff; } #viewerCard .vc-src.x { color: #8fd0ff; }
+  #viewerCard .vc-src.kick { color: #9bf57a; } #viewerCard .vc-src.shared { color: var(--gold); }
+  #viewerCard .vc-stats { display: flex; gap: 11px; color: var(--dim); margin-top: 9px; }
+  #viewerCard .vc-chan { color: var(--dim); margin-top: 5px; font-size: 11px; }
+
+  /* ── Elite polish: scrollbars, subtle motion, hover lift ─────────── */
+  #feed::-webkit-scrollbar, .contrib::-webkit-scrollbar, .markets::-webkit-scrollbar, .stchans::-webkit-scrollbar { height: 8px; width: 8px; }
+  #feed::-webkit-scrollbar-thumb, .contrib::-webkit-scrollbar-thumb, .markets::-webkit-scrollbar-thumb,
+  .stchans::-webkit-scrollbar-thumb { background: #2c2c2c; border-radius: 8px; }
+  #feed::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+  #feed::-webkit-scrollbar-track, .markets::-webkit-scrollbar-track { background: transparent; }
+  .row { transition: background .12s; animation: rowin .18s ease-out; }
+  @keyframes rowin { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+  .sttab, .stchan, .mkt, .chip { transition: all .12s; }
+  .mkt:hover { transform: translateY(-1px); }
+  .sttab:hover, .stchan:hover { border-color: var(--gold); }
+
   /* ── Mobile / narrow screens: keep button text on one line, tighten chrome ── */
   @media (max-width: 560px) {
     .stage { flex-direction: column; }              /* stack: video on top, chat below */
@@ -314,6 +357,11 @@
         <span class="lead">📊 CHAT'S BETTING ON<small>live Polymarket odds</small></span>
         <span class="empty" id="marketsList">reading the board…</span>
       </div>
+      <div class="compose">
+        <input id="cName" class="cname" placeholder="name" maxlength="24" />
+        <input id="cText" class="ctext" placeholder="Post to the shared chat — Twitch · X · Kick all see it…" maxlength="240" />
+        <button id="cSend" class="csend">📣 Send</button>
+      </div>
     </div>
   </div>
 
@@ -341,6 +389,7 @@
     twitch: { label: "TWITCH", emoji: "🎮" },
     x:      { label: "X",      emoji: "𝕏" },
     kick:   { label: "KICK",   emoji: "⚡" },
+    shared: { label: "SHARED", emoji: "📣" },
   };
   const hidden = { twitch: false, x: false, kick: false };
   let count = 0;
@@ -357,6 +406,7 @@
       .filter(Boolean)
   );
   const rowsById = new Map(); // id -> row element, for in-place AI patching
+  const viewers = new Map();  // author(lower) -> aggregate profile for the hover card
 
   function isVip(author) {
     return author && VIPS.has(String(author).toLowerCase().replace(/^@/, ""));
@@ -419,6 +469,60 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  // ── Viewer profiles + hover "where they're coming from" card ──────────
+  function trackViewer(m) {
+    const key = String(m.author || "").toLowerCase();
+    if (!key) return;
+    let v = viewers.get(key);
+    if (!v) {
+      v = { author: m.author, sources: {}, channels: new Set(), msgs: 0, standouts: 0,
+        bot: false, vip: isVip(m.author), first: m.ts || Date.now() };
+      viewers.set(key, v);
+    }
+    v.msgs++;
+    if (m.source) v.sources[m.source] = (v.sources[m.source] || 0) + 1;
+    if (m.channel) v.channels.add(m.channel);
+    if (m.bot) v.bot = true;
+    if (m.standout) v.standouts++;
+  }
+  function fmtAgo(ts) {
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m" : Math.floor(s / 3600) + "h";
+  }
+  const viewerCard = document.createElement("div");
+  viewerCard.id = "viewerCard"; viewerCard.style.display = "none";
+  document.body.appendChild(viewerCard);
+  function showViewerCard(author, anchorEl) {
+    const v = viewers.get(String(author).toLowerCase());
+    if (!v) return;
+    const srcs = Object.entries(v.sources).sort((a, b) => b[1] - a[1]).map(([s, n]) =>
+      `<span class="vc-src ${s}">${(SOURCES[s] || { emoji: "•" }).emoji} ${(SOURCES[s] || { label: s }).label} · ${n}</span>`).join("");
+    const tags = (v.vip ? `<span class="vc-tag vip">⭐ VIP</span>` : "") +
+      (v.bot ? `<span class="vc-tag bot">🤖 likely bot</span>` : "");
+    viewerCard.innerHTML =
+      `<div class="vc-name">${esc(v.author)}${tags}</div>` +
+      `<div class="vc-lab">where they're chatting from</div>` +
+      `<div class="vc-srcs">${srcs || "—"}</div>` +
+      `<div class="vc-stats"><span>💬 ${v.msgs}</span><span>💎 ${v.standouts}</span>` +
+      `<span>⏱ ${fmtAgo(v.first)} ago</span></div>` +
+      (v.channels.size ? `<div class="vc-chan">#${[...v.channels].slice(0, 3).map(esc).join("  #")}</div>` : "");
+    viewerCard.style.display = "block";
+    const r = anchorEl.getBoundingClientRect();
+    const cw = 252, ch = viewerCard.offsetHeight || 130;
+    let left = r.left, top = r.bottom + 6;
+    if (left + cw > window.innerWidth) left = window.innerWidth - cw - 8;
+    if (top + ch > window.innerHeight) top = r.top - ch - 6;
+    viewerCard.style.left = Math.max(8, left) + "px";
+    viewerCard.style.top = Math.max(8, top) + "px";
+  }
+  function hideViewerCard() { viewerCard.style.display = "none"; }
+  feed.addEventListener("mouseover", (e) => {
+    const a = e.target.closest(".author"); if (!a) return;
+    const row = a.closest(".row"); if (!row) return;
+    showViewerCard(row.dataset.author || a.textContent, a);
+  });
+  feed.addEventListener("mouseout", (e) => { if (e.target.closest(".author")) hideViewerCard(); });
+
   function addMessage(m) {
     const meta = SOURCES[m.source] || { label: m.source.toUpperCase(), emoji: "" };
     const vip = isVip(m.author);
@@ -427,6 +531,8 @@
       (m.bot ? " bot" : "") +
       (m.flag === "spam" ? " flag-spam" : m.flag === "toxic" ? " flag-toxic" : "");
     row.dataset.src = m.source;
+    row.dataset.author = m.author || "";
+    trackViewer(m);
     if (m.id) { row.dataset.id = m.id; rowsById.set(m.id, row); }
     if (hidden[m.source] || (botHidden && (m.bot || m.flag === "spam"))) row.style.display = "none";
 
@@ -478,6 +584,8 @@
     }
     if (p.standout && !row.classList.contains("standout")) {
       row.classList.add("standout", "flash");
+      const auth = row.dataset.author;
+      if (auth) { const v = viewers.get(auth.toLowerCase()); if (v) v.standouts++; }
       if (!row.querySelector(".so-badge")) {
         const b = document.createElement("span");
         b.className = "so-badge";
@@ -926,6 +1034,25 @@
     }
     renderStream();
   })();
+
+  // ── Post to the shared chat (drives chatters into the unified feed) ───
+  const cName = document.getElementById("cName"), cText = document.getElementById("cText"),
+        cSend = document.getElementById("cSend");
+  try { cName.value = localStorage.getItem("mb_name") || ""; } catch (e) {}
+  async function sendShared() {
+    const text = cText.value.trim();
+    if (!text) return;
+    const author = (cName.value.trim() || "guest").slice(0, 24);
+    try { localStorage.setItem("mb_name", author); } catch (e) {}
+    cText.value = ""; cSend.disabled = true;
+    try {
+      await fetch("/post", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ author, text }) });
+    } catch (e) {}
+    cSend.disabled = false; cText.focus();
+  }
+  cSend.addEventListener("click", sendShared);
+  cText.addEventListener("keydown", (e) => { if (e.key === "Enter") sendShared(); });
 
   let ws, backoff = 500;
   function connect() {

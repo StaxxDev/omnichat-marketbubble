@@ -26,6 +26,7 @@ from typing import Deque, Optional, Set
 import base64
 import subprocess
 import tempfile
+import time as _time
 
 import httpx
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -327,6 +328,36 @@ async def config_view():
         "youtube": lst("YOUTUBE_CHANNELS", "YT_CHANNELS", "YOUTUBE_VIDEOS"),
         "x_target": os.environ.get("X_TARGET", "") or "",
     })
+
+
+_post_times: Deque[float] = deque(maxlen=60)   # light global rate-limit for the shared compose
+
+
+@app.post("/post")
+async def post_shared(req: Request):
+    """A viewer posts into the unified 'shared chat' from the dashboard — it lands in the
+    same merged feed everyone sees and gets AI-moderated like any other message."""
+    now = _time.monotonic()
+    while _post_times and now - _post_times[0] > 60:
+        _post_times.popleft()
+    if len(_post_times) >= 40:
+        return JSONResponse({"ok": False, "error": "rate limited — slow down"}, status_code=429)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    text = (str(body.get("text") or "")).strip()[:240]
+    author = (str(body.get("author") or "guest")).strip()[:24] or "guest"
+    if not text:
+        return JSONResponse({"ok": False, "error": "empty message"}, status_code=400)
+    _post_times.append(now)
+    msg = {
+        "id": "shared-" + base64.urlsafe_b64encode(os.urandom(6)).decode().rstrip("="),
+        "source": "shared", "channel": "shared-chat",
+        "author": author, "text": text, "color": "", "ts": int(datetime.now(timezone.utc).timestamp() * 1000),
+    }
+    await _enrich_and_emit(msg)
+    return JSONResponse({"ok": True})
 
 
 def _chrome_path() -> Optional[str]:
